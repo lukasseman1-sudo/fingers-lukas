@@ -58,6 +58,9 @@ public class Fingers
     volatile float msfsDeadzone = 0f;
     volatile float msfsAcceleration = 0.75f;
     long msfsLastTick = 0;
+    HeadPoseReceiver headPoseReceiver;
+    Vector3 previousWorldHand;
+    bool previousWorldHandValid = false;
     public void SetMsfsTuning(float horizontal, float vertical, float compensation, float acceleration)
     {
         msfsHorizontal = horizontal;
@@ -95,7 +98,11 @@ public class Fingers
         resetPoint = new Vector2(screenCenter.X, screenCenter.Y * (float)1.25);
 
         if (!msfsMode) DCS.Monitor(this);
-        else Debug.WriteLine("Fingers MSFS relative input mode active");
+        else {
+            Debug.WriteLine("Fingers MSFS relative input mode active");
+            try { headPoseReceiver = new HeadPoseReceiver(); }
+            catch (Exception ex) { Debug.WriteLine("OpenXR pose receiver unavailable: " + ex.Message); }
+        }
 
         loop = new LoopListener(this);
         leap = new LeapHandler(this);
@@ -110,6 +117,7 @@ public class Fingers
 
     public async Task<bool> Closing()
     {
+        if (headPoseReceiver != null) headPoseReceiver.Dispose();
         await loop.Closing();
         return true;
     }
@@ -237,6 +245,30 @@ public class Fingers
             // Relative angle is tracked before any Windows cursor movement is generated.
             // Never read back the Windows cursor position, preventing recirculation.
             Vector2 angle = GetRelativeAngle(ref activeHand.pos);
+            TrackedHeadPose head = new TrackedHeadPose();
+            bool poseValid = headPoseReceiver != null && headPoseReceiver.TryGetPose(out head);
+            if (poseValid)
+            {
+                Vector3 worldHand;
+                // LeapHandler already outputs millimeters in a head-relative frame.
+                if (HeadIndependentHand.TryToWorld(activeHand.pos, head, Vector3.Zero,
+                                                     Quaternion.Identity, out worldHand))
+                {
+                    if (previousWorldHandValid)
+                    {
+                        Vector3 diff = worldHand - previousWorldHand;
+                        // Approximate meter-to-angle conversion, nominal working distance 0.5m.
+                        // Cockpit axes and tracker depth still require calibration.
+                        Vector2 worldDeltaAngle = new Vector2(diff.X, -diff.Y) * 114.59f;
+                        angle = previousMsfsAngle + worldDeltaAngle;
+                    }
+                    previousWorldHand = worldHand;
+                    previousWorldHandValid = true;
+                }
+                else { poseValid = false; }
+            }
+            if (!poseValid) previousWorldHandValid = false;
+
             if (previousMsfsAngleValid)
             {
                 Vector2 delta = angle - previousMsfsAngle;
@@ -278,6 +310,7 @@ public class Fingers
         previousMsfsAngleValid = false;
         msfsRemainder = Vector2.Zero;
         msfsLastTick = 0;
+        previousWorldHandValid = false;
     }
 
     private void ToggleVerticalOffset()
