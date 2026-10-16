@@ -2,7 +2,7 @@
   "file_format_version": "1.0.0",
   "api_layer": {
     "name": "XR_APILAYER_FINGERS_headpose",
-    "library_path": "FingersOpenXRLayer.dll",
+    "library_path": ".\\FingersOpenXRLayer.dll",
     "api_version": "1.0",
     "implementation_version": "1",
     "description": "Experimental Fingers headset pose for MSFS; disable via HKCU registration",
