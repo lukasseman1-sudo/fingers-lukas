@@ -36,6 +36,7 @@ jobs:
           Copy-Item "openxr-layer/FingersOpenXRLayer_implicit.json" "bin/Release/net48/"
           Copy-Item "openxr-layer/ENABLE_OPENXR_LAYER.cmd" "bin/Release/net48/"
           Copy-Item "openxr-layer/DISABLE_OPENXR_LAYER.cmd" "bin/Release/net48/"
+          Copy-Item "openxr-layer/CHECK_OPENXR_LAYER.cmd" "bin/Release/net48/"
       - uses: actions/upload-artifact@v4
         with:
           name: Fingers-MSFS-Windows-experimental
