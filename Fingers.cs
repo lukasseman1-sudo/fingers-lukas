@@ -247,33 +247,39 @@ public class Fingers
             // Relative angle is tracked before any Windows cursor movement is generated.
             // Never read back the Windows cursor position, preventing recirculation.
             Vector2 angle = GetRelativeAngle(ref activeHand.pos);
+            Vector2 delta = Vector2.Zero;
+            bool sampleValid = false;
             TrackedHeadPose head = new TrackedHeadPose();
             bool poseValid = headPoseReceiver != null && headPoseReceiver.TryGetPose(out head);
             if (poseValid)
             {
                 Vector3 worldHand;
-                // LeapHandler already outputs millimeters in a head-relative frame.
                 if (HeadIndependentHand.TryToWorld(activeHand.pos, head, Vector3.Zero,
-                                                     Quaternion.Identity, out worldHand))
+                                                   Quaternion.Identity, out worldHand))
                 {
                     if (previousWorldHandValid)
                     {
                         Vector3 diff = worldHand - previousWorldHand;
-                        // Approximate meter-to-angle conversion, nominal working distance 0.5m.
-                        // Cockpit axes and tracker depth still require calibration.
-                        Vector2 worldDeltaAngle = new Vector2(diff.X, -diff.Y) * 114.59f;
-                        angle = previousMsfsAngle + worldDeltaAngle;
+                        delta = new Vector2(diff.X, -diff.Y) * 114.59f;
+                        sampleValid = true;
                     }
                     previousWorldHand = worldHand;
                     previousWorldHandValid = true;
+                    // Do not mix head-local angle with world-space delta.
+                    previousMsfsAngleValid = false;
                 }
-                else { poseValid = false; }
+                else poseValid = false;
             }
-            if (!poseValid) previousWorldHandValid = false;
-
-            if (previousMsfsAngleValid)
+            if (!poseValid)
             {
-                Vector2 delta = angle - previousMsfsAngle;
+                previousWorldHandValid = false;
+                if (previousMsfsAngleValid) { delta = angle - previousMsfsAngle; sampleValid = true; }
+                previousMsfsAngle = angle;
+                previousMsfsAngleValid = true;
+            }
+
+            if (sampleValid)
+            {
                 // A tracker reacquisition or hand switch must not cause a huge cursor jump.
                 if (Math.Abs(delta.X) < 12f && Math.Abs(delta.Y) < 12f)
                 {
@@ -299,8 +305,6 @@ public class Fingers
                     if (dx != 0 || dy != 0) Winput.MoveMouseRelative(dx, dy);
                 }
             }
-            previousMsfsAngle = angle;
-            previousMsfsAngleValid = true;
         }
         else SetCursorPos(GetScreenPosition(activeHand.pos));
     }
