@@ -63,12 +63,16 @@ public class Fingers
     public bool HasFreshHeadPose { get { TrackedHeadPose h; return headPoseReceiver != null && headPoseReceiver.TryGetPose(out h); } }
     Vector3 previousWorldHand;
     bool previousWorldHandValid = false;
-    public void SetMsfsTuning(float horizontal, float vertical, float compensation, float acceleration)
+    float previousHeadPitchDegrees;
+    bool previousHeadPitchValid = false;
+    volatile float msfsVerticalHeadTrim = 0f;
+    public void SetMsfsTuning(float horizontal, float vertical, float compensation, float acceleration, float verticalHeadTrim)
     {
         msfsHorizontal = horizontal;
         msfsVertical = vertical;
         msfsDeadzone = compensation;
         msfsAcceleration = acceleration;
+        msfsVerticalHeadTrim = verticalHeadTrim;
     }
 
     public FingersApp.MainWindow ui;
@@ -263,6 +267,17 @@ public class Fingers
                         delta = new Vector2(diff.X, -diff.Y) * 114.59f;
                         sampleValid = true;
                     }
+                    // Trim residual pitch-induced Y motion without changing X.
+                    Vector3 forward = Vector3.Transform(new Vector3(0f, 0f, -1f), head.Orientation);
+                    float pitch = (float)(Math.Atan2(forward.Y, Math.Sqrt(forward.X * forward.X + forward.Z * forward.Z)) * 180.0 / Math.PI);
+                    if (previousHeadPitchValid && sampleValid)
+                    {
+                        float pitchDelta = pitch - previousHeadPitchDegrees;
+                        if (Math.Abs(pitchDelta) < 15f)
+                            delta.Y += pitchDelta * msfsVerticalHeadTrim;
+                    }
+                    previousHeadPitchDegrees = pitch;
+                    previousHeadPitchValid = true;
                     previousWorldHand = worldHand;
                     previousWorldHandValid = true;
                     // Do not mix head-local angle with world-space delta.
@@ -273,6 +288,7 @@ public class Fingers
             if (!poseValid)
             {
                 previousWorldHandValid = false;
+                previousHeadPitchValid = false;
                 if (previousMsfsAngleValid) { delta = angle - previousMsfsAngle; sampleValid = true; }
                 previousMsfsAngle = angle;
                 previousMsfsAngleValid = true;
