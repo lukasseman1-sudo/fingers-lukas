@@ -357,6 +357,8 @@ public class Fingers
         msfsRemainder = Vector2.Zero;
         msfsLastTick = 0;
         previousWorldHandValid = false;
+        previousHeadPitchValid = false;
+        currentHand.isActive = false;
     }
 
     private void ToggleVerticalOffset()
