@@ -17,11 +17,11 @@ jobs:
       - name: Include MSFS starter
         shell: pwsh
         run: |
-          '@echo off' | Out-File -Encoding ascii -FilePath "bin/Release/START_MSFS.cmd"
-          'set FINGERS_MSFS=1' | Out-File -Append -Encoding ascii -FilePath "bin/Release/START_MSFS.cmd"
-          'start "" "%~dp0FingersApp.exe"' | Out-File -Append -Encoding ascii -FilePath "bin/Release/START_MSFS.cmd"
+          '@echo off' | Out-File -Encoding ascii -FilePath "bin/Release/net48/START_MSFS.cmd"
+          'set FINGERS_MSFS=1' | Out-File -Append -Encoding ascii -FilePath "bin/Release/net48/START_MSFS.cmd"
+          'start "" "%~dp0FingersApp.exe"' | Out-File -Append -Encoding ascii -FilePath "bin/Release/net48/START_MSFS.cmd"
       - uses: actions/upload-artifact@v4
         with:
           name: Fingers-MSFS-Windows-experimental
-          path: bin/Release/
+          path: bin/Release/net48/
           if-no-files-found: error
