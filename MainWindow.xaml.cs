@@ -43,6 +43,7 @@ namespace FingersApp
             MsfsCompensationSlider.Value = ReadTuning("Compensation", 0);
             MsfsAccelerationSlider.Value = ReadTuning("Acceleration", 0.75);
             MsfsVerticalHeadTrimSlider.Value = ReadTuning("VerticalHeadTrim", 0);
+            MsfsLeftOnlyCheckBox.IsChecked = ReadTuning("LeftOnly", 1) != 0;
             poseStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             poseStatusTimer.Tick += (s, e) => { MsfsPoseStatus.Text = fingers != null && fingers.HasFreshHeadPose ? "OpenXR: headset data OK" : "OpenXR: bez dat headsetu"; };
             poseStatusTimer.Start();
@@ -88,7 +89,7 @@ namespace FingersApp
 
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
-            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value)); });
+            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsLeftOnly(MsfsLeftOnlyCheckBox.IsChecked == true); }); });
 
             /*
             FingersThread = new Thread(() =>
@@ -231,10 +232,18 @@ namespace FingersApp
                     "Vertical=" + MsfsVerticalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "Compensation=" + MsfsCompensationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "Acceleration=" + MsfsAccelerationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    "VerticalHeadTrim=" + MsfsVerticalHeadTrimSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    "VerticalHeadTrim=" + MsfsVerticalHeadTrimSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "LeftOnly=" + (MsfsLeftOnlyCheckBox.IsChecked == true ? "1" : "0")
                 });
             }
             catch (Exception ex) { Debug.WriteLine("MSFS tuning save: " + ex.Message); }
+        }
+
+        private void MsfsLeftOnlyChanged(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (MsfsLeftOnlyCheckBox == null) return;
+            if (fingers != null) fingers.SetMsfsLeftOnly(MsfsLeftOnlyCheckBox.IsChecked == true);
+            if (MsfsHorizontalSlider != null && MsfsVerticalHeadTrimSlider != null) SaveTuning();
         }
 
         private void MsfsSlidersChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
