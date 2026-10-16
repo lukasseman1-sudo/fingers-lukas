@@ -77,6 +77,9 @@ namespace FingersApp
             MsfsCompensationSlider.Value = ReadTuning("Compensation", 0);
             MsfsAccelerationSlider.Value = ReadTuning("Acceleration", 0.75);
             MsfsVerticalHeadTrimSlider.Value = ReadTuning("VerticalHeadTrim", 0);
+            Msfs3DCheckBox.IsChecked = ReadTuning("3DMode", 1) != 0;
+            MsfsSensorPitchSlider.Value = ReadTuning("SensorPitch", 0);
+            MsfsSensorYSlider.Value = ReadTuning("SensorY", 0);
             MsfsHandModeCombo.SelectedIndex = (int)Math.Max(0, Math.Min(2, ReadTuning("HandMode", 0)));
             poseStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             poseStatusTimer.Tick += (s, e) => { MsfsPoseStatus.Text = fingers != null && fingers.HasFreshHeadPose ? "OpenXR: headset data OK" : "OpenXR: bez dat headsetu"; };
@@ -123,7 +126,7 @@ namespace FingersApp
 
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
-            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex); }); });
+            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex); fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value); }); });
 
             /*
             FingersThread = new Thread(() =>
@@ -267,10 +270,22 @@ namespace FingersApp
                     "Compensation=" + MsfsCompensationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "Acceleration=" + MsfsAccelerationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "VerticalHeadTrim=" + MsfsVerticalHeadTrimSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    "HandMode=" + MsfsHandModeCombo.SelectedIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    "HandMode=" + MsfsHandModeCombo.SelectedIndex.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "3DMode=" + (Msfs3DCheckBox.IsChecked == true ? "1" : "0"),
+                    "SensorPitch=" + MsfsSensorPitchSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "SensorY=" + MsfsSensorYSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 });
             }
             catch (Exception ex) { Debug.WriteLine("MSFS tuning save: " + ex.Message); }
+        }
+
+        private void Msfs3DChanged(object sender, RoutedEventArgs e) { Apply3DSettings(); }
+        private void Msfs3DSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e) { Apply3DSettings(); }
+        private void Apply3DSettings()
+        {
+            if (Msfs3DCheckBox == null || MsfsSensorPitchSlider == null || MsfsSensorYSlider == null) return;
+            if (fingers != null) fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value);
+            if (MsfsHorizontalSlider != null && MsfsHandModeCombo != null) SaveTuning();
         }
 
         private void MsfsHandModeChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
