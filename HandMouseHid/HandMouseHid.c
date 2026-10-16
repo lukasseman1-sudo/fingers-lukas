@@ -75,17 +75,20 @@ NTSTATUS OnAdd(WDFDRIVER Driver,PWDFDEVICE_INIT Init)
 {
     UNREFERENCED_PARAMETER(Driver);
     WdfDeviceInitSetDeviceType(Init,FILE_DEVICE_HANDMOUSE);
+    WDF_PNPPOWER_EVENT_CALLBACKS pnp; WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnp);
+    pnp.EvtDevicePrepareHardware=OnPrepare;
+    pnp.EvtDeviceReleaseHardware=OnRelease;
+    WdfDeviceInitSetPnpPowerEventCallbacks(Init,&pnp);
     WDF_OBJECT_ATTRIBUTES attr; WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attr,DEVICE_CONTEXT);
     WDFDEVICE dev;
     NTSTATUS st=WdfDeviceCreate(&Init,&attr,&dev);
     if(!NT_SUCCESS(st)) return st;
     GetContext(dev)->Vhf=NULL;
+    DECLARE_CONST_UNICODE_STRING(link, L"\\\\.\\HandMouseHid");
+    st=WdfDeviceCreateSymbolicLink(dev,&link);
+    if(!NT_SUCCESS(st)) return st;
     st=WdfDeviceCreateDeviceInterface(dev,&GUID_DEVINTERFACE_HANDMOUSE,NULL);
     if(!NT_SUCCESS(st)) return st;
-    WDF_PNPPOWER_EVENT_CALLBACKS pnp; WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnp);
-    pnp.EvtDevicePrepareHardware=OnPrepare;
-    pnp.EvtDeviceReleaseHardware=OnRelease;
-    WdfDeviceSetPnpPowerEventCallbacks(dev,&pnp);
     WDF_IO_QUEUE_CONFIG queue; WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(&queue,WdfIoQueueDispatchSequential);
     queue.EvtIoDeviceControl=OnIoctl;
     return WdfIoQueueCreate(dev,&queue,WDF_NO_OBJECT_ATTRIBUTES,WDF_NO_HANDLE);
