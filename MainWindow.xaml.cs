@@ -42,6 +42,7 @@ namespace FingersApp
             MsfsVerticalSlider.Value = ReadTuning("Vertical", 4);
             MsfsCompensationSlider.Value = ReadTuning("Compensation", 0);
             MsfsAccelerationSlider.Value = ReadTuning("Acceleration", 0.75);
+            MsfsVerticalHeadTrimSlider.Value = ReadTuning("VerticalHeadTrim", 0);
             poseStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             poseStatusTimer.Tick += (s, e) => { MsfsPoseStatus.Text = fingers != null && fingers.HasFreshHeadPose ? "OpenXR: headset data OK" : "OpenXR: bez dat headsetu"; };
             poseStatusTimer.Start();
@@ -87,7 +88,7 @@ namespace FingersApp
 
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
-            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value)); });
+            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value)); });
 
             /*
             FingersThread = new Thread(() =>
@@ -229,7 +230,8 @@ namespace FingersApp
                     "Horizontal=" + MsfsHorizontalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "Vertical=" + MsfsVerticalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "Compensation=" + MsfsCompensationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    "Acceleration=" + MsfsAccelerationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    "Acceleration=" + MsfsAccelerationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "VerticalHeadTrim=" + MsfsVerticalHeadTrimSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 });
             }
             catch (Exception ex) { Debug.WriteLine("MSFS tuning save: " + ex.Message); }
@@ -237,9 +239,10 @@ namespace FingersApp
 
         private void MsfsSlidersChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (fingers == null || MsfsHorizontalSlider == null || MsfsVerticalSlider == null || MsfsCompensationSlider == null || MsfsAccelerationSlider == null) return;
+            if (fingers == null || MsfsHorizontalSlider == null || MsfsVerticalSlider == null || MsfsCompensationSlider == null || MsfsAccelerationSlider == null || MsfsVerticalHeadTrimSlider == null) return;
             fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value,
-                                  (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value);
+                                  (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value,
+                                  (float)MsfsVerticalHeadTrimSlider.Value);
             SaveTuning();
         }
 
