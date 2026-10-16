@@ -1,0 +1,24 @@
+name: Build Standalone HandMouse
+on:
+  workflow_dispatch:
+  push:
+    branches: [handmouse-standalone]
+jobs:
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Restore and compile HandMouse x64
+        run: |
+          msbuild HandMouse/HandMouse.csproj /t:Restore /p:Configuration=Release
+          msbuild HandMouse/HandMouse.csproj /p:Configuration=Release /p:Platform="Any CPU"
+      - name: Include instructions
+        shell: pwsh
+        run: |
+          Copy-Item "HandMouse/README.txt" "HandMouse/bin/Release/net48/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HandMouse-Windows-x64
+          path: HandMouse/bin/Release/net48/
+          if-no-files-found: error
