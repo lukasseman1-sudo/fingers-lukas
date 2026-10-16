@@ -199,14 +199,15 @@ public class Fingers
         return (leftButtonDown || rightButtonDown);
     }
 
-    volatile bool msfsLeftOnly = true;
-    public void SetMsfsLeftOnly(bool enabled) { msfsLeftOnly = enabled; DisengageHand(); }
+    volatile int msfsHandMode = 0; // 0=left, 1=right, 2=both
+    public void SetMsfsHandMode(int mode) { msfsHandMode = Math.Max(0, Math.Min(2, mode)); DisengageHand(); }
 
     public HandData GetActiveHand(HandData left, HandData right)
     {
         // In MSFS mode only the left hand is allowed to control the cursor.
         // Never fall back to the right hand when left tracking is lost.
-        if (msfsMode && msfsLeftOnly) return left.isActive ? left : new HandData() { isActive = false, isLeft = true };
+        if (msfsMode && msfsHandMode == 0) return left.isActive ? left : new HandData() { isActive = false, isLeft = true };
+        if (msfsMode && msfsHandMode == 1) return right.isActive ? right : new HandData() { isActive = false, isLeft = false };
         HandData activeHand = new HandData() { isActive = false };
 
         // Match to existing hand if we're in some kind of drag event (so we don't snap to another
