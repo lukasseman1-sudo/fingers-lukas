@@ -8,7 +8,7 @@
         mc:Ignorable="d"
         Loaded="Page_Loaded"
         Closing="Window_Closing"
-        ResizeMode="CanMinimize" Height="390" Width="280"
+        ResizeMode="CanMinimize" Height="570" Width="320"
         Title="Fingers" Background="#FF0F0F0F">
     <Window.Resources>
         <ResourceDictionary>
@@ -227,5 +227,15 @@
             </Button>
         </Grid>
         <Rectangle Fill="#FFF4F4F5" HorizontalAlignment="Center" Height="1" Margin="32,114,32,0" Stroke="#222" VerticalAlignment="Top" Width="274"/>
+        <StackPanel x:Name="MsfsTuningPanel" Visibility="Collapsed" Margin="18,358,18,0" VerticalAlignment="Top">
+            <TextBlock Text="MSFS 2024 - ovladanie rukou" Foreground="White" FontWeight="Bold" Margin="0,0,0,8"/>
+            <TextBlock Text="Horizontalna citlivost" Foreground="White"/>
+            <Slider x:Name="MsfsHorizontalSlider" Minimum="0.5" Maximum="8" Value="2" TickFrequency="0.25" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
+            <TextBlock Text="Vertikalna citlivost" Foreground="White" Margin="0,8,0,0"/>
+            <Slider x:Name="MsfsVerticalSlider" Minimum="0.5" Maximum="12" Value="4" TickFrequency="0.25" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
+            <TextBlock Text="Potlacenie drobnych pohybov (experimentalne)" Foreground="White" Margin="0,8,0,0"/>
+            <Slider x:Name="MsfsCompensationSlider" Minimum="0" Maximum="0.5" Value="0" TickFrequency="0.02" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
+            <TextBlock Text="Nie je to skutocna OpenXR kompenzacia hlavy." Foreground="#FFAAAAAA" FontSize="10" TextWrapping="Wrap" Margin="0,7,0,0"/>
+        </StackPanel>
     </Grid>
 </Window>
