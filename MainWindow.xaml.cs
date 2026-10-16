@@ -40,6 +40,7 @@ namespace FingersApp
             MsfsHorizontalSlider.Value = ReadTuning("Horizontal", 2);
             MsfsVerticalSlider.Value = ReadTuning("Vertical", 4);
             MsfsCompensationSlider.Value = ReadTuning("Compensation", 0);
+            MsfsAccelerationSlider.Value = ReadTuning("Acceleration", 0.75);
         }
 
         private async void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
@@ -81,7 +82,7 @@ namespace FingersApp
 
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
-            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value)); });
+            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value)); });
 
             /*
             FingersThread = new Thread(() =>
@@ -222,7 +223,8 @@ namespace FingersApp
                 System.IO.File.WriteAllLines(TuningFile, new[] {
                     "Horizontal=" + MsfsHorizontalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "Vertical=" + MsfsVerticalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    "Compensation=" + MsfsCompensationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    "Compensation=" + MsfsCompensationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "Acceleration=" + MsfsAccelerationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 });
             }
             catch (Exception ex) { Debug.WriteLine("MSFS tuning save: " + ex.Message); }
@@ -230,9 +232,9 @@ namespace FingersApp
 
         private void MsfsSlidersChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (fingers == null || MsfsHorizontalSlider == null || MsfsVerticalSlider == null || MsfsCompensationSlider == null) return;
+            if (fingers == null || MsfsHorizontalSlider == null || MsfsVerticalSlider == null || MsfsCompensationSlider == null || MsfsAccelerationSlider == null) return;
             fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value,
-                                  (float)MsfsCompensationSlider.Value);
+                                  (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value);
             SaveTuning();
         }
 
