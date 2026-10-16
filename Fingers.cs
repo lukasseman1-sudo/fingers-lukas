@@ -201,6 +201,9 @@ public class Fingers
 
     public HandData GetActiveHand(HandData left, HandData right)
     {
+        // In MSFS mode only the left hand is allowed to control the cursor.
+        // Never fall back to the right hand when left tracking is lost.
+        if (msfsMode) return left.isActive ? left : new HandData() { isActive = false, isLeft = true };
         HandData activeHand = new HandData() { isActive = false };
 
         // Match to existing hand if we're in some kind of drag event (so we don't snap to another
