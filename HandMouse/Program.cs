@@ -30,6 +30,8 @@ namespace HandMouse
         readonly Timer refresh = new Timer();
         readonly Label status = new Label();
         readonly CheckBox enabled = new CheckBox();
+        readonly CheckBox useHid = new CheckBox();
+        readonly HidMouseOutput hidOutput = new HidMouseOutput();
         readonly TrackBar horizontal = new TrackBar();
         readonly TrackBar vertical = new TrackBar();
         readonly TrackBar minGain = new TrackBar();
@@ -63,7 +65,17 @@ namespace HandMouse
             enabled.CheckedChanged += (s, e) => ResetMotion();
             Controls.Add(enabled);
 
-            status.SetBounds(20, 54, 445, 42);
+            useHid.Text = "Virtuálna HID myš (vyžaduje ovládač)";
+            useHid.SetBounds(20, 50, 445, 28);
+            useHid.CheckedChanged += (s, e) => {
+                if (useHid.Checked && !hidOutput.Connect()) {
+                    useHid.Checked = false;
+                    MessageBox.Show("Virtuálny HID ovládač nie je dostupný. Použije sa softvérová myš.", "HandMouse");
+                }
+                ResetMotion();
+            };
+            Controls.Add(useHid);
+            status.SetBounds(20, 79, 445, 24);
             status.Text = "Ultraleap: čakám na pripojenie";
             Controls.Add(status);
 
@@ -95,7 +107,7 @@ namespace HandMouse
             refresh.Start();
             KeyPreview = true;
             KeyDown += (s, e) => { if (e.KeyCode == Keys.F8) { enabled.Checked = !enabled.Checked; e.Handled = true; } };
-            FormClosed += (s, e) => { refresh.Stop(); leap.Dispose(); };
+            FormClosed += (s, e) => { refresh.Stop(); leap.Dispose(); hidOutput.Dispose(); };
         }
 
         void AddSlider(string caption, TrackBar slider, int y, int lo, int hi, int value)
@@ -165,8 +177,15 @@ namespace HandMouse
                     Vector2 movement = new Vector2(x * horizontal.Value / 40f, y * vertical.Value / 40f) * (28f * gain) + residue;
                     int dx = (int)Math.Truncate(movement.X), dy = (int)Math.Truncate(movement.Y);
                     residue = movement - new Vector2(dx, dy);
-                    if (dx != 0 || dy != 0)
-                        mouse_event(MOUSEEVENTF_MOVE, unchecked((uint)dx), unchecked((uint)dy), 0, UIntPtr.Zero);
+                    if (dx != 0 || dy != 0) {
+                        if (useHid.Checked) {
+                            if (!hidOutput.Move(dx, dy)) {
+                                enabled.Checked = false;
+                                useHid.Checked = false;
+                                MessageBox.Show("Spojenie s HID ovládačom zlyhalo. Ovládanie sa vyplo.", "HandMouse");
+                            }
+                        } else mouse_event(MOUSEEVENTF_MOVE, unchecked((uint)dx), unchecked((uint)dy), 0, UIntPtr.Zero);
+                    }
                 }
             }
             catch { ResetMotion(); }
