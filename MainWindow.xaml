@@ -8,7 +8,7 @@
         mc:Ignorable="d"
         Loaded="Page_Loaded"
         Closing="Window_Closing"
-        ResizeMode="CanMinimize" Height="765" Width="350"
+        ResizeMode="CanMinimize" Height="820" Width="350"
         Title="Fingers" Background="#FF0F0F0F">
     <Window.Resources>
         <ResourceDictionary>
@@ -237,6 +237,8 @@
             <Slider x:Name="MsfsCompensationSlider" Minimum="0" Maximum="0.5" Value="0" TickFrequency="0.02" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
             <TextBlock Text="Progresivne zrychlenie pri vacsom pohybe" Foreground="White" Margin="0,8,0,0"/>
             <Slider x:Name="MsfsAccelerationSlider" Minimum="0" Maximum="1" Value="0.75" TickFrequency="0.05" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
+            <TextBlock Text="Kompenzacia sklonu hlavy - vertikalna (-2 az +2)" Foreground="White" Margin="0,8,0,0"/>
+            <Slider x:Name="MsfsVerticalHeadTrimSlider" Minimum="-2" Maximum="2" Value="0" TickFrequency="0.05" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
             <TextBlock x:Name="MsfsPoseStatus" Text="OpenXR: cakam na data headsetu" Foreground="#FFFFC670" FontWeight="Bold" Margin="0,8,0,0"/>
             <TextBlock Text="Nie je to skutocna OpenXR kompenzacia hlavy." Foreground="#FFAAAAAA" FontSize="10" TextWrapping="Wrap" Margin="0,7,0,0"/>
         </StackPanel>
