@@ -48,7 +48,8 @@ public class Fingers
     HandData currentHand;
 
     // MSFS mode sends relative movement straight from hand tracking (no cursor feedback loop).
-    readonly bool msfsMode = Environment.GetEnvironmentVariable("FINGERS_MSFS") == "1";
+    readonly bool mouseOnlyMode = Environment.GetEnvironmentVariable("FINGERS_MOUSE_ONLY") == "1";
+    readonly bool msfsMode = Environment.GetEnvironmentVariable("FINGERS_MSFS") == "1" || Environment.GetEnvironmentVariable("FINGERS_MOUSE_ONLY") == "1";
     Vector2 previousMsfsAngle;
     bool previousMsfsAngleValid = false;
     Vector2 msfsRemainder;
@@ -101,7 +102,7 @@ public class Fingers
         if (!msfsMode) DCS.Monitor(this);
         else {
             Debug.WriteLine("Fingers MSFS relative input mode active");
-            try { headPoseReceiver = new HeadPoseReceiver(); }
+            try { if (!mouseOnlyMode) headPoseReceiver = new HeadPoseReceiver(); }
             catch (Exception ex) { Debug.WriteLine("OpenXR pose receiver unavailable: " + ex.Message); }
         }
 
