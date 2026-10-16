@@ -10,6 +10,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
@@ -26,6 +27,37 @@ namespace FingersApp
     public partial class MainWindow : Window
     {
         Fingers fingers;
+        private HwndSource hotkeySource;
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint modifiers, uint key);
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+        private void InstallHandHotkeys(object sender, EventArgs e)
+        {
+            hotkeySource = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
+            if (hotkeySource == null) return;
+            hotkeySource.AddHook(HandHotkeyHook);
+            for (int id = 1; id <= 3; id++)
+                RegisterHotKey(hotkeySource.Handle, 5300 + id, 0x4003, (uint)(0x30 + id));
+        }
+        private IntPtr HandHotkeyHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            int id = wParam.ToInt32();
+            if (msg == 0x0312 && id >= 5301 && id <= 5303)
+            {
+                MsfsHandModeCombo.SelectedIndex = id - 5301;
+                handled = true;
+            }
+            return IntPtr.Zero;
+        }
+        private void RemoveHandHotkeys(object sender, EventArgs e)
+        {
+            if (hotkeySource == null) return;
+            for (int id = 1; id <= 3; id++)
+                UnregisterHotKey(hotkeySource.Handle, 5300 + id);
+            hotkeySource.RemoveHook(HandHotkeyHook);
+        }
+
         private bool closing = false;
         private DispatcherTimer poseStatusTimer;
         //Thread FingersThread;
@@ -37,13 +69,15 @@ namespace FingersApp
         {
             CheckMultipleInstanceofApp();
             InitializeComponent();
+            SourceInitialized += InstallHandHotkeys;
+            Closed += RemoveHandHotkeys;
             MsfsTuningPanel.Visibility = Visibility.Visible; // Show tuning controls even when launched directly; MSFS mode itself still requires START_MSFS.cmd.
             MsfsHorizontalSlider.Value = ReadTuning("Horizontal", 2);
             MsfsVerticalSlider.Value = ReadTuning("Vertical", 4);
             MsfsCompensationSlider.Value = ReadTuning("Compensation", 0);
             MsfsAccelerationSlider.Value = ReadTuning("Acceleration", 0.75);
             MsfsVerticalHeadTrimSlider.Value = ReadTuning("VerticalHeadTrim", 0);
-            MsfsLeftOnlyCheckBox.IsChecked = ReadTuning("LeftOnly", 1) != 0;
+            MsfsHandModeCombo.SelectedIndex = (int)Math.Max(0, Math.Min(2, ReadTuning("HandMode", 0)));
             poseStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             poseStatusTimer.Tick += (s, e) => { MsfsPoseStatus.Text = fingers != null && fingers.HasFreshHeadPose ? "OpenXR: headset data OK" : "OpenXR: bez dat headsetu"; };
             poseStatusTimer.Start();
@@ -89,7 +123,7 @@ namespace FingersApp
 
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
-            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsLeftOnly(MsfsLeftOnlyCheckBox.IsChecked == true); }); });
+            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex); }); });
 
             /*
             FingersThread = new Thread(() =>
@@ -233,15 +267,15 @@ namespace FingersApp
                     "Compensation=" + MsfsCompensationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "Acceleration=" + MsfsAccelerationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "VerticalHeadTrim=" + MsfsVerticalHeadTrimSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    "LeftOnly=" + (MsfsLeftOnlyCheckBox.IsChecked == true ? "1" : "0")
+                    "HandMode=" + MsfsHandModeCombo.SelectedIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 });
             }
             catch (Exception ex) { Debug.WriteLine("MSFS tuning save: " + ex.Message); }
         }
 
-        private void MsfsLeftOnlyChanged(object sender, System.Windows.RoutedEventArgs e)
+        private void MsfsHandModeChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
-            if (MsfsLeftOnlyCheckBox == null) return;
+            if (MsfsHandModeCombo == null) return;
             if (fingers != null) fingers.SetMsfsLeftOnly(MsfsLeftOnlyCheckBox.IsChecked == true);
             if (MsfsHorizontalSlider != null && MsfsVerticalHeadTrimSlider != null) SaveTuning();
         }
