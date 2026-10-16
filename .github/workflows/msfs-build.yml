@@ -13,7 +13,7 @@ jobs:
       - name: Restore packages
         run: msbuild FingersApp.sln /t:Restore /p:Configuration=Release
       - name: Build Windows executable
-        run: msbuild FingersApp.sln /p:Configuration=Release /p:Platform=AnyCPU
+        run: msbuild FingersApp.sln /p:Configuration=Release /p:Platform="Any CPU"
       - name: Include MSFS starter
         shell: pwsh
         run: |
