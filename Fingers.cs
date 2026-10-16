@@ -64,6 +64,25 @@ public class Fingers
     Vector3 previousWorldHand;
     bool previousWorldHandValid = false;
     float previousHeadPitchDegrees;
+    readonly object verticalLogLock = new object();
+    long lastVerticalLogTicks = 0;
+    void LogVertical(float pitch, float handY, float worldY, float deltaY, bool poseValid)
+    {
+        long now = DateTime.UtcNow.Ticks;
+        if (now - lastVerticalLogTicks < TimeSpan.FromMilliseconds(100).Ticks) return;
+        lastVerticalLogTicks = now;
+        try {
+            string path = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FingersMSFS", "vertical_diagnostics.csv");
+            lock(verticalLogLock) {
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                bool header = !System.IO.File.Exists(path);
+                using (var writer = new System.IO.StreamWriter(path, true)) {
+                    if (header) writer.WriteLine("utc_ticks,pose_valid,head_pitch_deg,hand_head_y_mm,hand_world_y_m,cursor_delta_y_deg");
+                    writer.WriteLine(string.Join(",", now, poseValid ? "1" : "0", pitch.ToString(System.Globalization.CultureInfo.InvariantCulture), handY.ToString(System.Globalization.CultureInfo.InvariantCulture), worldY.ToString(System.Globalization.CultureInfo.InvariantCulture), deltaY.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                }
+            }
+        } catch (Exception ex) { Debug.WriteLine("Vertical diagnostics: " + ex.Message); }
+    }
     bool previousHeadPitchValid = false;
     volatile float msfsVerticalHeadTrim = 0f;
     public void SetMsfsTuning(float horizontal, float vertical, float compensation, float acceleration, float verticalHeadTrim)
@@ -278,6 +297,7 @@ public class Fingers
                     }
                     previousHeadPitchDegrees = pitch;
                     previousHeadPitchValid = true;
+                    LogVertical(pitch, activeHand.pos.Y, worldHand.Y, delta.Y, true);
                     previousWorldHand = worldHand;
                     previousWorldHandValid = true;
                     // Do not mix head-local angle with world-space delta.
@@ -287,6 +307,7 @@ public class Fingers
             }
             if (!poseValid)
             {
+                LogVertical(0f, activeHand.pos.Y, 0f, delta.Y, false);
                 previousWorldHandValid = false;
                 previousHeadPitchValid = false;
                 if (previousMsfsAngleValid) { delta = angle - previousMsfsAngle; sampleValid = true; }
