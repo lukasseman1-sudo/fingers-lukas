@@ -101,10 +101,10 @@ class LeapHandler
         {
             ref HandData data = ref ((hand.IsLeft) ? ref leftHand : ref rightHand);
 
-            // Mouse-only mode uses the thumb tip; regular DCS/MSFS modes keep the original index metacarpal.
-            bool thumbMouse = Environment.GetEnvironmentVariable("FINGERS_MOUSE_ONLY") == "1";
-            Bone mcp = hand.Fingers.Find(x => x.Type == (thumbMouse ? Finger.FingerType.TYPE_THUMB : Finger.FingerType.TYPE_INDEX))
-                                   .Bone(thumbMouse ? Bone.BoneType.TYPE_DISTAL : Bone.BoneType.TYPE_METACARPAL);
+            // Stable base of the index finger (metacarpal), including Mouse Only mode.
+            // Avoid using the thumb tip, which amplifies small finger motions.
+            Bone mcp = hand.Fingers.Find(x => x.Type == Finger.FingerType.TYPE_INDEX)
+                                   .Bone(Bone.BoneType.TYPE_METACARPAL);
 
             // Convert to HandData coordinate system
             // Can also consider using StabilizedPalmPosition
