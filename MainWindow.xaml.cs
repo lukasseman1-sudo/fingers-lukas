@@ -36,7 +36,7 @@ namespace FingersApp
         {
             CheckMultipleInstanceofApp();
             InitializeComponent();
-            MsfsTuningPanel.Visibility = Environment.GetEnvironmentVariable("FINGERS_MSFS") == "1" ? Visibility.Visible : Visibility.Collapsed;
+            MsfsTuningPanel.Visibility = Visibility.Visible; // Show tuning controls even when launched directly; MSFS mode itself still requires START_MSFS.cmd.
             MsfsHorizontalSlider.Value = ReadTuning("Horizontal", 2);
             MsfsVerticalSlider.Value = ReadTuning("Vertical", 4);
             MsfsCompensationSlider.Value = ReadTuning("Compensation", 0);
