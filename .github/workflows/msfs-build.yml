@@ -20,6 +20,9 @@ jobs:
           '@echo off' | Out-File -Encoding ascii -FilePath "bin/Release/net48/START_MSFS.cmd"
           'set FINGERS_MSFS=1' | Out-File -Append -Encoding ascii -FilePath "bin/Release/net48/START_MSFS.cmd"
           'start "" "%~dp0FingersApp.exe"' | Out-File -Append -Encoding ascii -FilePath "bin/Release/net48/START_MSFS.cmd"
+      - name: Include standalone mouse-only launcher
+        shell: pwsh
+        run: Copy-Item "START_MOUSE_ONLY.cmd" "bin/Release/net48/"
       - name: Configure OpenXR head pose layer
         run: cmake -S openxr-layer -B openxr-layer/build -A x64
       - name: Build OpenXR head pose layer
