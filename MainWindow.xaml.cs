@@ -187,11 +187,45 @@ namespace FingersApp
                 fingers.SetLeapProfile(text, false);
         }
 
+        private static string TuningFile
+        {
+            get
+            {
+                string folder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FingersMSFS");
+                return System.IO.Path.Combine(folder, "tuning.txt");
+            }
+        }
+
         private static double ReadTuning(string key, double fallback)
         {
-            double value;
-            string raw = System.Configuration.ConfigurationManager.AppSettings[key];
-            return double.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value) ? value : fallback;
+            try
+            {
+                if (!System.IO.File.Exists(TuningFile)) return fallback;
+                foreach (string line in System.IO.File.ReadAllLines(TuningFile))
+                {
+                    string[] pair = line.Split(new[] { '=' }, 2);
+                    double value;
+                    if (pair.Length == 2 && pair[0] == key &&
+                        double.TryParse(pair[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value))
+                        return value;
+                }
+            }
+            catch (Exception ex) { Debug.WriteLine("MSFS tuning load: " + ex.Message); }
+            return fallback;
+        }
+
+        private void SaveTuning()
+        {
+            try
+            {
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(TuningFile));
+                System.IO.File.WriteAllLines(TuningFile, new[] {
+                    "Horizontal=" + MsfsHorizontalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "Vertical=" + MsfsVerticalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "Compensation=" + MsfsCompensationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                });
+            }
+            catch (Exception ex) { Debug.WriteLine("MSFS tuning save: " + ex.Message); }
         }
 
         private void MsfsSlidersChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -199,6 +233,7 @@ namespace FingersApp
             if (fingers == null || MsfsHorizontalSlider == null || MsfsVerticalSlider == null || MsfsCompensationSlider == null) return;
             fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value,
                                   (float)MsfsCompensationSlider.Value);
+            SaveTuning();
         }
 
         private void SensitivityValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
