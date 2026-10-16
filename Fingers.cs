@@ -199,6 +199,16 @@ public class Fingers
         return (leftButtonDown || rightButtonDown);
     }
 
+    volatile bool msfs3DMode = true;
+    volatile float msfsSensorPitch = 0f;
+    volatile float msfsSensorY = 0f;
+    public void SetMsfs3DMode(bool enabled, float sensorPitch, float sensorY)
+    {
+        msfs3DMode = enabled;
+        msfsSensorPitch = sensorPitch;
+        msfsSensorY = sensorY;
+        DisengageHand();
+    }
     volatile int msfsHandMode = 0; // 0=left, 1=right, 2=both
     public void SetMsfsHandMode(int mode) { msfsHandMode = Math.Max(0, Math.Min(2, mode)); DisengageHand(); }
 
@@ -281,11 +291,13 @@ public class Fingers
             bool sampleValid = false;
             TrackedHeadPose head = new TrackedHeadPose();
             bool poseValid = headPoseReceiver != null && headPoseReceiver.TryGetPose(out head);
-            if (poseValid)
+            if (poseValid && msfs3DMode)
             {
                 Vector3 worldHand;
-                if (HeadIndependentHand.TryToWorld(new Vector3(activeHand.pos.X, activeHand.pos.Y, -activeHand.pos.Z), head, Vector3.Zero,
-                                                   Quaternion.Identity, out worldHand))
+                if (HeadIndependentHand.TryToWorld(new Vector3(activeHand.pos.X, activeHand.pos.Y, -activeHand.pos.Z), head,
+                                                   new Vector3(0f, msfsSensorY * 0.001f, 0f),
+                                                   Quaternion.CreateFromAxisAngle(Vector3.UnitX, msfsSensorPitch * (float)Math.PI / 180f),
+                                                   out worldHand))
                 {
                     if (previousWorldHandValid)
                     {
@@ -312,7 +324,7 @@ public class Fingers
                 }
                 else poseValid = false;
             }
-            if (!poseValid)
+            if (!poseValid || !msfs3DMode)
             {
                 LogVertical(0f, activeHand.pos.Y, 0f, delta.Y, false);
                 previousWorldHandValid = false;
