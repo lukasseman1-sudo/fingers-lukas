@@ -66,6 +66,6 @@
 	</ItemGroup>
 
 	<Target Name="TestTarget" AfterTargets="Build">
-		<Copy SourceFiles="$(LeapSDKDir)\lib\x64\LeapC.dll" DestinationFolder="$(OutputPath)" ContinueOnError="false" />
+		<Copy SourceFiles="$(LeapSDKDir)\lib\x64\LeapC.dll" DestinationFolder="$(OutputPath)" Condition="Exists('$(LeapSDKDir)\lib\x64\LeapC.dll')" />
 	</Target>
 </Project>
