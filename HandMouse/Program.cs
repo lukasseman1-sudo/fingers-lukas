@@ -126,7 +126,16 @@ namespace HandMouse
                 // Match Fingers' headset-relative coordinate orientation.
                 Vector3 point = new Vector3(-joint[0], -joint[2], joint[1]);
                 if (point.Z < 30) { ResetMotion(); return; }
+                if (IsDisposed || !IsHandleCreated) return;
+                BeginInvoke(new Action(() => ProcessPoint(point)));
+            }
+            catch { ResetMotion(); }
+        }
 
+        void ProcessPoint(Vector3 point)
+        {
+            try
+            {
                 lock (gate)
                 {
                     lastTracking = DateTime.UtcNow;
