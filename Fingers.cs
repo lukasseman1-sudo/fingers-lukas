@@ -59,6 +59,7 @@ public class Fingers
     volatile float msfsAcceleration = 0.75f;
     long msfsLastTick = 0;
     HeadPoseReceiver headPoseReceiver;
+    public bool HasFreshHeadPose { get { TrackedHeadPose h; return headPoseReceiver != null && headPoseReceiver.TryGetPose(out h); } }
     Vector3 previousWorldHand;
     bool previousWorldHandValid = false;
     public void SetMsfsTuning(float horizontal, float vertical, float compensation, float acceleration)
