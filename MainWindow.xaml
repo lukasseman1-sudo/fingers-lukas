@@ -8,7 +8,7 @@
         mc:Ignorable="d"
         Loaded="Page_Loaded"
         Closing="Window_Closing"
-        ResizeMode="CanMinimize" Height="900" Width="350"
+        ResizeMode="CanMinimize" Height="1040" Width="350"
         Title="Fingers" Background="#FF0F0F0F">
     <Window.Resources>
         <ResourceDictionary>
@@ -235,6 +235,11 @@
                 <ComboBoxItem Content="Prava ruka"/>
                 <ComboBoxItem Content="Obe ruky"/>
             </ComboBox>
+            <CheckBox x:Name="Msfs3DCheckBox" Content="3D priestorove osi (OpenXR)" IsChecked="True" Foreground="White" Checked="Msfs3DChanged" Unchecked="Msfs3DChanged" Margin="0,0,0,8"/>
+            <TextBlock Text="Sklon Ultraleap senzora (stupne)" Foreground="White"/>
+            <Slider x:Name="MsfsSensorPitchSlider" Minimum="-45" Maximum="45" Value="0" TickFrequency="1" AutoToolTipPlacement="TopLeft" ValueChanged="Msfs3DSliderChanged"/>
+            <TextBlock Text="Vyska senzora od headsetu (mm)" Foreground="White" Margin="0,6,0,0"/>
+            <Slider x:Name="MsfsSensorYSlider" Minimum="-150" Maximum="150" Value="0" TickFrequency="5" AutoToolTipPlacement="TopLeft" ValueChanged="Msfs3DSliderChanged"/>
             <TextBlock Text="Horizontalna citlivost" Foreground="White"/>
             <Slider x:Name="MsfsHorizontalSlider" Minimum="0.5" Maximum="8" Value="2" TickFrequency="0.25" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
             <TextBlock Text="Vertikalna citlivost" Foreground="White" Margin="0,8,0,0"/>
@@ -246,7 +251,7 @@
             <TextBlock Text="Kompenzacia sklonu hlavy - vertikalna (-2 az +2)" Foreground="White" Margin="0,8,0,0"/>
             <Slider x:Name="MsfsVerticalHeadTrimSlider" Minimum="-2" Maximum="2" Value="0" TickFrequency="0.05" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
             <TextBlock x:Name="MsfsPoseStatus" Text="OpenXR: cakam na data headsetu" Foreground="#FFFFC670" FontWeight="Bold" Margin="0,8,0,0"/>
-            <TextBlock Text="Nie je to skutocna OpenXR kompenzacia hlavy." Foreground="#FFAAAAAA" FontSize="10" TextWrapping="Wrap" Margin="0,7,0,0"/>
+            <TextBlock Text="3D rezim vyzaduje aktivne OpenXR udaje. Pri strate dat pouzije zalozny rezim." Foreground="#FFAAAAAA" FontSize="10" TextWrapping="Wrap" Margin="0,7,0,0"/>
         </StackPanel>
     </Grid>
 </Window>
