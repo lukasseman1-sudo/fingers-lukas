@@ -29,6 +29,7 @@ jobs:
         run: |
           Copy-Item "openxr-layer/build/Release/FingersOpenXRLayer.dll" "bin/Release/net48/"
           Copy-Item "openxr-layer/FingersOpenXRLayer.json" "bin/Release/net48/"
+          Copy-Item "openxr-layer/OPENXR_MSFS_STEAM.cmd" "bin/Release/net48/"
       - uses: actions/upload-artifact@v4
         with:
           name: Fingers-MSFS-Windows-experimental
