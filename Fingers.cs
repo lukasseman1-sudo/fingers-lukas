@@ -47,6 +47,13 @@ public class Fingers
     // The last hand we tracked
     HandData currentHand;
 
+    // MSFS mode sends relative movement straight from hand tracking (no cursor feedback loop).
+    readonly bool msfsMode = Environment.GetEnvironmentVariable("FINGERS_MSFS") == "1";
+    Vector2 previousMsfsAngle;
+    bool previousMsfsAngleValid = false;
+    Vector2 msfsRemainder;
+    const float MsfsPixelsPerDegree = 28f;
+
     public FingersApp.MainWindow ui;
 
     Vector2 screenCenter;
@@ -75,7 +82,8 @@ public class Fingers
 
         resetPoint = new Vector2(screenCenter.X, screenCenter.Y * (float)1.25);
 
-        DCS.Monitor(this);
+        if (!msfsMode) DCS.Monitor(this);
+        else Debug.WriteLine("Fingers MSFS relative input mode active");
 
         loop = new LoopListener(this);
         leap = new LeapHandler(this);
@@ -210,16 +218,38 @@ public class Fingers
         }
 
         currentHand = activeHand;
-        Vector2 screenPos = GetScreenPosition(activeHand.pos);
+        if (!activeHand.isActive) return;
 
-        SetCursorPos(screenPos);
+        if (msfsMode)
+        {
+            // Relative angle is tracked before any Windows cursor movement is generated.
+            // Never read back the Windows cursor position, preventing recirculation.
+            Vector2 angle = GetRelativeAngle(ref activeHand.pos);
+            if (previousMsfsAngleValid)
+            {
+                Vector2 delta = angle - previousMsfsAngle;
+                // A tracker reacquisition or hand switch must not cause a huge cursor jump.
+                if (Math.Abs(delta.X) < 12f && Math.Abs(delta.Y) < 12f)
+                {
+                    Vector2 movement = delta * MsfsPixelsPerDegree + msfsRemainder;
+                    int dx = (int)Math.Truncate(movement.X);
+                    int dy = (int)Math.Truncate(movement.Y);
+                    msfsRemainder = movement - new Vector2(dx, dy);
+                    if (dx != 0 || dy != 0) Winput.MoveMouseRelative(dx, dy);
+                }
+            }
+            previousMsfsAngle = angle;
+            previousMsfsAngleValid = true;
+        }
+        else SetCursorPos(GetScreenPosition(activeHand.pos));
     }
 
     // Called when the current hand stops being active; currently we leave left/right mouse buttons
     // down because a user might have them down for other reasons (e.g. holding temporary switches)
     private void DisengageHand()
     {
-
+        previousMsfsAngleValid = false;
+        msfsRemainder = Vector2.Zero;
     }
 
     private void ToggleVerticalOffset()
