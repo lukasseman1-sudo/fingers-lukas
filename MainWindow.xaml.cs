@@ -27,6 +27,7 @@ namespace FingersApp
     {
         Fingers fingers;
         private bool closing = false;
+        private DispatcherTimer poseStatusTimer;
         //Thread FingersThread;
 
         [DllImport("user32.dll")]
@@ -41,6 +42,9 @@ namespace FingersApp
             MsfsVerticalSlider.Value = ReadTuning("Vertical", 4);
             MsfsCompensationSlider.Value = ReadTuning("Compensation", 0);
             MsfsAccelerationSlider.Value = ReadTuning("Acceleration", 0.75);
+            poseStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+            poseStatusTimer.Tick += (s, e) => { MsfsPoseStatus.Text = fingers != null && fingers.HasFreshHeadPose ? "OpenXR: headset data OK" : "OpenXR: bez dat headsetu"; };
+            poseStatusTimer.Start();
         }
 
         private async void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
@@ -51,6 +55,7 @@ namespace FingersApp
             }
 
             e.Cancel = true;
+            if (poseStatusTimer != null) poseStatusTimer.Stop();
             if (fingers != null)
                 await fingers.Closing();
             closing = true;
