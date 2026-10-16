@@ -41,13 +41,6 @@ public static class HeadIndependentHand
         return IsFinite(handWorldMeters);
     }
 
-    public static Vector2 DeltaAngleDegrees(Vector3 previousWorld, Vector3 currentWorld)
-    {
-        Vector3 d = currentWorld - previousWorld;
-        // For horizontal/vertical movements; actual cursor mapping still needs calibration.
-        return new Vector2(d.X, -d.Y) * (180f / (float)Math.PI);
-    }
-
     private static bool IsFinite(Vector3 p) =>
         Valid(p.X) && Valid(p.Y) && Valid(p.Z);
     private static bool IsFinite(Quaternion q) =>
