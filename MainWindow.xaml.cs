@@ -36,6 +36,10 @@ namespace FingersApp
         {
             CheckMultipleInstanceofApp();
             InitializeComponent();
+            MsfsTuningPanel.Visibility = Environment.GetEnvironmentVariable("FINGERS_MSFS") == "1" ? Visibility.Visible : Visibility.Collapsed;
+            MsfsHorizontalSlider.Value = ReadTuning("Horizontal", 2);
+            MsfsVerticalSlider.Value = ReadTuning("Vertical", 4);
+            MsfsCompensationSlider.Value = ReadTuning("Compensation", 0);
         }
 
         private async void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
@@ -77,7 +81,7 @@ namespace FingersApp
 
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
-            Task workerTask = Task.Run(() => { fingers = new Fingers(this); });
+            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value)); });
 
             /*
             FingersThread = new Thread(() =>
@@ -181,6 +185,20 @@ namespace FingersApp
             // loads the previous data, so we don't need/want to call back to it
             if (text != null && fingers != null)
                 fingers.SetLeapProfile(text, false);
+        }
+
+        private static double ReadTuning(string key, double fallback)
+        {
+            double value;
+            string raw = System.Configuration.ConfigurationManager.AppSettings[key];
+            return double.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value) ? value : fallback;
+        }
+
+        private void MsfsSlidersChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (fingers == null || MsfsHorizontalSlider == null || MsfsVerticalSlider == null || MsfsCompensationSlider == null) return;
+            fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value,
+                                  (float)MsfsCompensationSlider.Value);
         }
 
         private void SensitivityValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
