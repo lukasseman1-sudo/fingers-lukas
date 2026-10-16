@@ -13,6 +13,14 @@
 static PFN_xrGetInstanceProcAddr nextGipa = nullptr;
 static PFN_xrLocateViews nextLocateViews = nullptr;
 static PFN_xrDestroyInstance nextDestroyInstance = nullptr;
+static PFN_xrCreateSession nextCreateSession = nullptr;
+static PFN_xrDestroySession nextDestroySession = nullptr;
+static PFN_xrCreateReferenceSpace nextCreateReferenceSpace = nullptr;
+static PFN_xrDestroySpace nextDestroySpace = nullptr;
+static PFN_xrLocateSpace nextLocateSpace = nullptr;
+static XrSession trackedSession = XR_NULL_HANDLE;
+static XrSpace headSpace = XR_NULL_HANDLE;
+static XrSpace localSpace = XR_NULL_HANDLE;
 static std::mutex mutex;
 static SOCKET socketHandle = INVALID_SOCKET;
 static sockaddr_in targetAddress = {};
@@ -42,22 +50,54 @@ static void InitSocket() {
     targetAddress.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     initialized.store(true);
 }
+static XrResult XRAPI_CALL LayerCreateSession(XrInstance instance,
+    const XrSessionCreateInfo* info, XrSession* session) {
+    if (!nextCreateSession) return XR_ERROR_FUNCTION_UNSUPPORTED;
+    XrResult result = nextCreateSession(instance, info, session);
+    if (XR_FAILED(result) || !session || !nextCreateReferenceSpace) return result;
+    std::lock_guard<std::mutex> guard(mutex);
+    XrReferenceSpaceCreateInfo desc{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
+    desc.poseInReferenceSpace.orientation.w = 1.0f;
+    desc.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;
+    XrSpace local = XR_NULL_HANDLE, view = XR_NULL_HANDLE;
+    if (XR_SUCCEEDED(nextCreateReferenceSpace(*session, &desc, &local))) {
+        desc.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
+        if (XR_SUCCEEDED(nextCreateReferenceSpace(*session, &desc, &view))) {
+            trackedSession = *session; localSpace = local; headSpace = view;
+        } else if (nextDestroySpace) nextDestroySpace(local);
+    }
+    return result;
+}
+static XrResult XRAPI_CALL LayerDestroySession(XrSession session) {
+    if (!nextDestroySession) return XR_ERROR_FUNCTION_UNSUPPORTED;
+    {
+        std::lock_guard<std::mutex> guard(mutex);
+        if (session == trackedSession) {
+            if (nextDestroySpace) {
+                if (headSpace != XR_NULL_HANDLE) nextDestroySpace(headSpace);
+                if (localSpace != XR_NULL_HANDLE) nextDestroySpace(localSpace);
+            }
+            trackedSession = XR_NULL_HANDLE;
+            headSpace = localSpace = XR_NULL_HANDLE;
+        }
+    }
+    return nextDestroySession(session);
+}
 static XrResult XRAPI_CALL LayerLocateViews(XrSession session, const XrViewLocateInfo* info,
     XrViewState* state, uint32_t capacity, uint32_t* count, XrView* views) {
     if (!nextLocateViews) return XR_ERROR_FUNCTION_UNSUPPORTED;
-    const XrResult result = nextLocateViews(session, info, state, capacity, count, views);
-    if (XR_SUCCEEDED(result) && state && count && *count > 0 && views &&
-        (state->viewStateFlags & XR_VIEW_STATE_POSITION_VALID_BIT) &&
-        (state->viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT)) {
-        // View 0 is a valid view pose, but its position contains the eye offset.
-        // For a calibrated headset center, midpoint of two stereo eyes is preferable.
-        XrPosef pose = views[0].pose;
-        if (*count >= 2) {
-            pose.position.x = (views[0].pose.position.x + views[1].pose.position.x) * .5f;
-            pose.position.y = (views[0].pose.position.y + views[1].pose.position.y) * .5f;
-            pose.position.z = (views[0].pose.position.z + views[1].pose.position.z) * .5f;
+    XrResult result = nextLocateViews(session, info, state, capacity, count, views);
+    if (XR_SUCCEEDED(result) && info && nextLocateSpace) {
+        std::lock_guard<std::mutex> guard(mutex);
+        if (trackedSession == session && headSpace != XR_NULL_HANDLE && localSpace != XR_NULL_HANDLE) {
+            XrSpaceLocation location{XR_TYPE_SPACE_LOCATION};
+            if (XR_SUCCEEDED(nextLocateSpace(headSpace, localSpace, info->displayTime, &location)) &&
+                (location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
+                (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT)) {
+                // Always send headset VIEW space in stable OpenXR LOCAL reference frame.
+                SendHeadPose(location.pose);
+            }
         }
-        SendHeadPose(pose);
     }
     return result;
 }
@@ -70,6 +110,8 @@ static XrResult XRAPI_CALL LayerDestroyInstance(XrInstance instance) {
 static XrResult XRAPI_CALL LayerGetInstanceProcAddr(
     XrInstance instance, const char* name, PFN_xrVoidFunction* function) {
     if (!name || !function) return XR_ERROR_VALIDATION_FAILURE;
+    if (strcmp(name, "xrCreateSession") == 0) { *function = reinterpret_cast<PFN_xrVoidFunction>(LayerCreateSession); return XR_SUCCESS; }
+    if (strcmp(name, "xrDestroySession") == 0) { *function = reinterpret_cast<PFN_xrVoidFunction>(LayerDestroySession); return XR_SUCCESS; }
     if (strcmp(name, "xrLocateViews") == 0) {
         *function = reinterpret_cast<PFN_xrVoidFunction>(LayerLocateViews);
         return XR_SUCCESS;
@@ -97,6 +139,16 @@ static XrResult XRAPI_CALL LayerCreateInstance(
     if (XR_SUCCEEDED(nextGipa(*instance, "xrDestroyInstance", &raw))) {
         nextDestroyInstance = reinterpret_cast<PFN_xrDestroyInstance>(raw);
     }
+    raw = nullptr;
+    if (XR_SUCCEEDED(nextGipa(*instance, "xrCreateSession", &raw))) nextCreateSession = reinterpret_cast<PFN_xrCreateSession>(raw);
+    raw = nullptr;
+    if (XR_SUCCEEDED(nextGipa(*instance, "xrDestroySession", &raw))) nextDestroySession = reinterpret_cast<PFN_xrDestroySession>(raw);
+    raw = nullptr;
+    if (XR_SUCCEEDED(nextGipa(*instance, "xrCreateReferenceSpace", &raw))) nextCreateReferenceSpace = reinterpret_cast<PFN_xrCreateReferenceSpace>(raw);
+    raw = nullptr;
+    if (XR_SUCCEEDED(nextGipa(*instance, "xrDestroySpace", &raw))) nextDestroySpace = reinterpret_cast<PFN_xrDestroySpace>(raw);
+    raw = nullptr;
+    if (XR_SUCCEEDED(nextGipa(*instance, "xrLocateSpace", &raw))) nextLocateSpace = reinterpret_cast<PFN_xrLocateSpace>(raw);
     InitSocket();
     return result;
 }
