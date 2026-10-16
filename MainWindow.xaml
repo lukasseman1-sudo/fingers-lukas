@@ -8,7 +8,7 @@
         mc:Ignorable="d"
         Loaded="Page_Loaded"
         Closing="Window_Closing"
-        ResizeMode="CanMinimize" Height="820" Width="350"
+        ResizeMode="CanMinimize" Height="850" Width="350"
         Title="Fingers" Background="#FF0F0F0F">
     <Window.Resources>
         <ResourceDictionary>
@@ -229,6 +229,7 @@
         <Rectangle Fill="#FFF4F4F5" HorizontalAlignment="Center" Height="1" Margin="32,114,32,0" Stroke="#222" VerticalAlignment="Top" Width="274"/>
         <StackPanel x:Name="MsfsTuningPanel" Visibility="Visible" Margin="18,360,18,0" VerticalAlignment="Top">
             <TextBlock Text="MSFS 2024 - ovladanie rukou" Foreground="White" FontWeight="Bold" Margin="0,0,0,8"/>
+            <CheckBox x:Name="MsfsLeftOnlyCheckBox" Content="Sledovat iba lavu ruku" IsChecked="True" Foreground="White" Margin="0,0,0,10" Checked="MsfsLeftOnlyChanged" Unchecked="MsfsLeftOnlyChanged"/>
             <TextBlock Text="Horizontalna citlivost" Foreground="White"/>
             <Slider x:Name="MsfsHorizontalSlider" Minimum="0.5" Maximum="8" Value="2" TickFrequency="0.25" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
             <TextBlock Text="Vertikalna citlivost" Foreground="White" Margin="0,8,0,0"/>
