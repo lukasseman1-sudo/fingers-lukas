@@ -53,6 +53,15 @@ public class Fingers
     bool previousMsfsAngleValid = false;
     Vector2 msfsRemainder;
     const float MsfsPixelsPerDegree = 28f;
+    volatile float msfsHorizontal = 2f;
+    volatile float msfsVertical = 4f;
+    volatile float msfsDeadzone = 0f;
+    public void SetMsfsTuning(float horizontal, float vertical, float compensation)
+    {
+        msfsHorizontal = horizontal;
+        msfsVertical = vertical;
+        msfsDeadzone = compensation;
+    }
 
     public FingersApp.MainWindow ui;
 
@@ -231,7 +240,11 @@ public class Fingers
                 // A tracker reacquisition or hand switch must not cause a huge cursor jump.
                 if (Math.Abs(delta.X) < 12f && Math.Abs(delta.Y) < 12f)
                 {
-                    Vector2 movement = delta * MsfsPixelsPerDegree + msfsRemainder;
+                    // Deadzone attenuates micro-movements; it cannot distinguish head from hand.
+                    float deadzone = msfsDeadzone;
+                    if (Math.Abs(delta.X) < deadzone) delta.X = 0;
+                    if (Math.Abs(delta.Y) < deadzone) delta.Y = 0;
+                    Vector2 movement = new Vector2(delta.X * msfsHorizontal, delta.Y * msfsVertical) * MsfsPixelsPerDegree + msfsRemainder;
                     int dx = (int)Math.Truncate(movement.X);
                     int dy = (int)Math.Truncate(movement.Y);
                     msfsRemainder = movement - new Vector2(dx, dy);
