@@ -56,11 +56,14 @@ public class Fingers
     volatile float msfsHorizontal = 2f;
     volatile float msfsVertical = 4f;
     volatile float msfsDeadzone = 0f;
-    public void SetMsfsTuning(float horizontal, float vertical, float compensation)
+    volatile float msfsAcceleration = 0.75f;
+    long msfsLastTick = 0;
+    public void SetMsfsTuning(float horizontal, float vertical, float compensation, float acceleration)
     {
         msfsHorizontal = horizontal;
         msfsVertical = vertical;
         msfsDeadzone = compensation;
+        msfsAcceleration = acceleration;
     }
 
     public FingersApp.MainWindow ui;
@@ -244,7 +247,18 @@ public class Fingers
                     float deadzone = msfsDeadzone;
                     if (Math.Abs(delta.X) < deadzone) delta.X = 0;
                     if (Math.Abs(delta.Y) < deadzone) delta.Y = 0;
-                    Vector2 movement = new Vector2(delta.X * msfsHorizontal, delta.Y * msfsVertical) * MsfsPixelsPerDegree + msfsRemainder;
+                    // Nonlinear acceleration based on angular speed, not distance from center.
+                    // Small, slow corrections remain precise; deliberate fast motions travel farther.
+                    long now = System.Diagnostics.Stopwatch.GetTimestamp();
+                    float dt = msfsLastTick == 0 ? 0.016f : (float)(now - msfsLastTick) / System.Diagnostics.Stopwatch.Frequency;
+                    msfsLastTick = now;
+                    dt = Math.Max(0.005f, Math.Min(dt, 0.10f));
+                    float angularSpeed = delta.Length() / dt;
+                    float t = Math.Max(0f, Math.Min(1f, (angularSpeed - 3f) / 32f));
+                    t = t * t * (3f - 2f * t);
+                    float blend = msfsAcceleration;
+                    float gain = (1f - blend) + blend * (0.20f + 1.80f * t);
+                    Vector2 movement = new Vector2(delta.X * msfsHorizontal, delta.Y * msfsVertical) * (MsfsPixelsPerDegree * gain) + msfsRemainder;
                     int dx = (int)Math.Truncate(movement.X);
                     int dy = (int)Math.Truncate(movement.Y);
                     msfsRemainder = movement - new Vector2(dx, dy);
@@ -263,6 +277,7 @@ public class Fingers
     {
         previousMsfsAngleValid = false;
         msfsRemainder = Vector2.Zero;
+        msfsLastTick = 0;
     }
 
     private void ToggleVerticalOffset()
