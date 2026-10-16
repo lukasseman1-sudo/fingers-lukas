@@ -254,7 +254,7 @@ public class Fingers
             if (poseValid)
             {
                 Vector3 worldHand;
-                if (HeadIndependentHand.TryToWorld(activeHand.pos, head, Vector3.Zero,
+                if (HeadIndependentHand.TryToWorld(new Vector3(activeHand.pos.X, activeHand.pos.Y, -activeHand.pos.Z), head, Vector3.Zero,
                                                    Quaternion.Identity, out worldHand))
                 {
                     if (previousWorldHandValid)
