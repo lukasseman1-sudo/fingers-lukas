@@ -8,7 +8,7 @@
         mc:Ignorable="d"
         Loaded="Page_Loaded"
         Closing="Window_Closing"
-        ResizeMode="CanMinimize" Height="390" Width="280"
+        ResizeMode="CanMinimize" Height="900" Width="350"
         Title="Fingers" Background="#FF0F0F0F">
     <Window.Resources>
         <ResourceDictionary>
@@ -227,5 +227,52 @@
             </Button>
         </Grid>
         <Rectangle Fill="#FFF4F4F5" HorizontalAlignment="Center" Height="1" Margin="32,114,32,0" Stroke="#222" VerticalAlignment="Top" Width="274"/>
+        <ScrollViewer Margin="18,360,18,16" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel x:Name="MsfsTuningPanel" Visibility="Visible">
+            <TextBlock Text="MSFS 2024 - ovladanie rukou" Foreground="White" FontWeight="Bold" Margin="0,0,0,8"/>
+            <TextBlock Text="Aktivna ruka (aj cez Ctrl+Alt+1 / 2 / 3)" Foreground="White"/>
+            <ComboBox x:Name="MsfsHandModeCombo" SelectionChanged="MsfsHandModeChanged" SelectedIndex="0" Margin="0,3,0,10" Background="White" Foreground="Black">
+                <ComboBoxItem Content="Lava ruka" Background="White" Foreground="Black"/>
+                <ComboBoxItem Content="Prava ruka" Background="White" Foreground="Black"/>
+                <ComboBoxItem Content="Obe ruky" Background="White" Foreground="Black"/>
+            </ComboBox>
+            <CheckBox x:Name="Msfs3DCheckBox" Content="3D priestorove osi (OpenXR)" IsChecked="True" Foreground="White" Checked="Msfs3DChanged" Unchecked="Msfs3DChanged" Margin="0,0,0,8"/>
+            <CheckBox x:Name="MsfsInvertDepthCheckBox" Content="Invertovat Z: ruka ku mne / odo mna" IsChecked="True" Foreground="White" Margin="0,0,0,5" Checked="Msfs3DChanged" Unchecked="Msfs3DChanged"/>
+            <TextBlock Text="Vplyv Z na vertikalny kurzor (0 = vypnuty)" Foreground="White"/>
+            <Slider x:Name="MsfsDepthInfluenceSlider" Minimum="0" Maximum="2" Value="0.35" TickFrequency="0.01" SmallChange="0.01" AutoToolTipPlacement="TopLeft" ValueChanged="Msfs3DSliderChanged"/>
+            <TextBlock Text="Sklon Ultraleap senzora (stupne)" Foreground="White"/>
+            <Slider x:Name="MsfsSensorPitchSlider" Minimum="-45" Maximum="45" Value="0" TickFrequency="1" AutoToolTipPlacement="TopLeft" ValueChanged="Msfs3DSliderChanged"/>
+            <TextBlock Text="Vyska senzora od headsetu (mm)" Foreground="White" Margin="0,6,0,0"/>
+            <Slider x:Name="MsfsSensorYSlider" Minimum="-150" Maximum="150" Value="0" TickFrequency="5" AutoToolTipPlacement="TopLeft" ValueChanged="Msfs3DSliderChanged"/>
+            <TextBlock Text="Horizontalna citlivost" Foreground="White"/>
+            <Slider x:Name="MsfsHorizontalSlider" Minimum="0.5" Maximum="8" Value="2" TickFrequency="0.25" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
+            <TextBlock Text="Vertikalna citlivost" Foreground="White" Margin="0,8,0,0"/>
+            <Slider x:Name="MsfsVerticalSlider" Minimum="0.5" Maximum="12" Value="4" TickFrequency="0.25" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
+            <TextBlock Text="Mrtva zona ruky - jemne chvenie (0-0.5 stupna)" Foreground="White" Margin="0,8,0,0"/>
+            <Slider x:Name="MsfsCompensationSlider" Minimum="0" Maximum="0.5" Value="0" TickFrequency="0.02" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
+            <TextBlock Text="Progresivne zrychlenie pri vacsom pohybe" Foreground="White" Margin="0,8,0,0"/>
+            <Slider x:Name="MsfsAccelerationSlider" Minimum="0" Maximum="1" Value="0.75" TickFrequency="0.05" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
+            <TextBlock Text="Vertikalna kompenzacia hlavy (kalibrovana)" Foreground="White" Margin="0,8,0,0"/>
+            <Slider x:Name="MsfsVerticalHeadTrimSlider" Minimum="-12" Maximum="12" Value="0" TickFrequency="0.0001" SmallChange="0.0001" LargeChange="0.001" AutoToolTipPrecision="4" IsSnapToTickEnabled="False" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,3">
+                <Button Content="− 0,0001" Tag="V-" Click="MsfsNudgeTrim" Margin="0,0,10,0" Padding="10,2"/>
+                <Button Content="+ 0,0001" Tag="V+" Click="MsfsNudgeTrim" Padding="10,2"/>
+            </StackPanel>
+            <Button x:Name="MsfsPitchCalibrateButton" Content="Spustit kalibraciu vertikalnej kompenzacie" Click="MsfsPitchCalibrateClicked" Margin="0,8,0,0"/>
+            <TextBlock x:Name="MsfsPitchCalibrateHelp" Text="Drz zapastie nehybne, hyb len hlavou hore/dole. Potom ukonci kalibraciu." Foreground="#FFAAAAAA" FontSize="10" TextWrapping="Wrap" Margin="0,3,0,0"/>
+            <TextBlock Text="Horizontalna kompenzacia hlavy (kalibrovana)" Foreground="White" Margin="0,8,0,0"/>
+            <Slider x:Name="MsfsHorizontalHeadTrimSlider" Minimum="-12" Maximum="12" Value="0" TickFrequency="0.0001" SmallChange="0.0001" LargeChange="0.001" AutoToolTipPrecision="4" IsSnapToTickEnabled="False" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsHorizontalTrimChanged"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,3">
+                <Button Content="− 0,0001" Tag="H-" Click="MsfsNudgeTrim" Margin="0,0,10,0" Padding="10,2"/>
+                <Button Content="+ 0,0001" Tag="H+" Click="MsfsNudgeTrim" Padding="10,2"/>
+            </StackPanel>
+            <Button x:Name="MsfsYawCalibrateButton" Content="Spustit kalibraciu horizontalnej kompenzacie" Click="MsfsYawCalibrateClicked" Margin="0,8,0,0"/>
+            <TextBlock x:Name="MsfsYawCalibrateHelp" Text="Drz zapastie nehybne, otacaj iba hlavou vlavo/vpravo." Foreground="#FFAAAAAA" FontSize="10" TextWrapping="Wrap"/>
+            <CheckBox x:Name="MsfsCenterOnTrackCheckBox" Content="Pri zacati sledovania dat kurzor do stredu" Foreground="White" Margin="0,8,0,0" Checked="MsfsCenterChanged" Unchecked="MsfsCenterChanged"/>
+            <TextBlock x:Name="MsfsInputStatus" Text="Cakam na vstup ruky" Foreground="#FF82D9F0" TextWrapping="Wrap" Margin="0,9,0,0"/>
+            <TextBlock x:Name="MsfsPoseStatus" Text="OpenXR: cakam na data headsetu" Foreground="#FFFFC670" FontWeight="Bold" Margin="0,8,0,0"/>
+            <TextBlock Text="3D rezim vyzaduje aktivne OpenXR udaje. Pri strate dat pouzije zalozny rezim." Foreground="#FFAAAAAA" FontSize="10" TextWrapping="Wrap" Margin="0,7,0,0"/>
+        </StackPanel>
+        </ScrollViewer>
     </Grid>
 </Window>

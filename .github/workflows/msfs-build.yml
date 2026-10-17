@@ -1,0 +1,44 @@
+name: Build Fingers MSFS
+on:
+  workflow_dispatch:
+  push:
+    branches: [msfs-direct-input]
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+      - name: Restore packages
+        run: msbuild FingersApp.sln /t:Restore /p:Configuration=Release
+      - name: Build Windows executable
+        run: msbuild FingersApp.sln /p:Configuration=Release /p:Platform="Any CPU"
+      - name: Include MSFS starter
+        shell: pwsh
+        run: |
+          '@echo off' | Out-File -Encoding ascii -FilePath "bin/Release/net48/START_MSFS.cmd"
+          'set FINGERS_MSFS=1' | Out-File -Append -Encoding ascii -FilePath "bin/Release/net48/START_MSFS.cmd"
+          'start "" "%~dp0FingersApp.exe"' | Out-File -Append -Encoding ascii -FilePath "bin/Release/net48/START_MSFS.cmd"
+      - name: Include standalone mouse-only launcher
+        shell: pwsh
+        run: Copy-Item "START_MOUSE_ONLY.cmd" "bin/Release/net48/"
+      - name: Configure OpenXR head pose layer
+        run: cmake -S openxr-layer -B openxr-layer/build -A x64
+      - name: Build OpenXR head pose layer
+        run: cmake --build openxr-layer/build --config Release
+      - name: Stage experimental head-pose layer
+        shell: pwsh
+        run: |
+          Copy-Item "openxr-layer/build/Release/FingersOpenXRLayer.dll" "bin/Release/net48/"
+          Copy-Item "openxr-layer/FingersOpenXRLayer.json" "bin/Release/net48/"
+          Copy-Item "openxr-layer/OPENXR_MSFS_STEAM.cmd" "bin/Release/net48/"
+          Copy-Item "openxr-layer/FingersOpenXRLayer_implicit.json" "bin/Release/net48/"
+          Copy-Item "openxr-layer/ENABLE_OPENXR_LAYER.cmd" "bin/Release/net48/"
+          Copy-Item "openxr-layer/DISABLE_OPENXR_LAYER.cmd" "bin/Release/net48/"
+          Copy-Item "openxr-layer/CHECK_OPENXR_LAYER.cmd" "bin/Release/net48/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Fingers-MSFS-Windows-experimental
+          path: bin/Release/net48/
+          if-no-files-found: error

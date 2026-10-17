@@ -49,6 +49,13 @@ public class Winput
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint numberOfInputs, Input[] inputs, int sizeOfInputStructure);
 
+    public static void MoveMouseRelative(int dx, int dy)
+    {
+        if (dx == 0 && dy == 0) return;
+        // Relative mouse_event packets; no SetCursorPos/GetCursorPos feedback loop.
+        mouse_event((uint)MouseEventF.Move, unchecked((uint)dx), unchecked((uint)dy), 0, 0);
+    }
+
     public static void SetCursorPosition(int x, int y)
     {
         SetCursorPos(x, y);

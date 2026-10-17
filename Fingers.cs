@@ -44,8 +44,110 @@ public class Fingers
 
     Vector4 DCSWindow = new Vector4(0, 0, 0, 0);
 
+    public volatile int LeapFramesSeen;
+    public volatile int LeapLeftSeen;
+    public volatile int LeapRightSeen;
+    public volatile int MouseMovesSent;
+    public bool IsMsfsInputMode { get { return msfsMode; } }
+    public void ReportLeapFrame(bool left, bool right)
+    {
+        System.Threading.Interlocked.Increment(ref LeapFramesSeen);
+        LeapLeftSeen = left ? 1 : 0;
+        LeapRightSeen = right ? 1 : 0;
+    }
     // The last hand we tracked
     HandData currentHand;
+
+    // MSFS mode sends relative movement straight from hand tracking (no cursor feedback loop).
+    readonly bool mouseOnlyMode = Environment.GetEnvironmentVariable("FINGERS_MOUSE_ONLY") == "1";
+    readonly bool msfsMode = Environment.GetEnvironmentVariable("FINGERS_MSFS") == "1" || Environment.GetEnvironmentVariable("FINGERS_MOUSE_ONLY") == "1";
+    Vector2 previousMsfsAngle;
+    bool previousMsfsAngleValid = false;
+    Vector2 msfsRemainder;
+    Vector2 msfsDeadzoneAccumulator;
+    const float MsfsPixelsPerDegree = 28f;
+    volatile float msfsHorizontal = 2f;
+    volatile float msfsVertical = 4f;
+    volatile float msfsDeadzone = 0f;
+    volatile float msfsAcceleration = 0.75f;
+    long msfsLastTick = 0;
+    HeadPoseReceiver headPoseReceiver;
+    public bool HasFreshHeadPose { get { TrackedHeadPose h; return headPoseReceiver != null && headPoseReceiver.TryGetPose(out h); } }
+    Vector3 previousWorldHand;
+    bool previousWorldHandValid = false;
+    float previousHeadYawDegrees;
+    bool previousHeadYawValid;
+    volatile float msfsHorizontalHeadTrim = 0f;
+    volatile bool calibratingYaw;
+    double yawXX, yawXY;
+    int yawSamples;
+    public void SetMsfsHorizontalTrim(float value) { msfsHorizontalHeadTrim = value; }
+    public void StartYawCalibration() { yawXX = yawXY = 0; yawSamples = 0; calibratingYaw = true; DisengageHand(); }
+    public bool FinishYawCalibration(out float correction, out int count)
+    {
+        calibratingYaw = false; count = yawSamples; correction = msfsHorizontalHeadTrim;
+        if (count < 12 || yawXX < 2.0) return false;
+        double fitted = -yawXY / yawXX;
+        if (double.IsNaN(fitted) || double.IsInfinity(fitted) || Math.Abs(fitted) > 12) return false;
+        correction = (float)fitted; msfsHorizontalHeadTrim = correction; DisengageHand(); return true;
+    }
+    volatile bool centerOnTrackingStart;
+    public void SetCenterOnTrackingStart(bool enabled) { centerOnTrackingStart = enabled; }
+    float previousHeadPitchDegrees;
+    volatile bool calibratingPitch;
+    double pitchXX, pitchXY;
+    int pitchSamples;
+    public void StartPitchCalibration()
+    {
+        pitchXX = pitchXY = 0;
+        pitchSamples = 0;
+        calibratingPitch = true;
+        DisengageHand();
+    }
+    // Keep the wrist stationary in WORLD space while moving only the head up/down.
+    // The measured residual Y divided by pitch change is the trim that cancels it.
+    public bool FinishPitchCalibration(out float correction, out int count)
+    {
+        calibratingPitch = false;
+        count = pitchSamples;
+        correction = msfsVerticalHeadTrim;
+        if (pitchSamples < 12 || pitchXX < 2.0) return false;
+        double fitted = -pitchXY / pitchXX;
+        if (double.IsNaN(fitted) || double.IsInfinity(fitted) || Math.Abs(fitted) > 12) return false;
+        correction = (float)fitted;
+        msfsVerticalHeadTrim = correction;
+        DisengageHand();
+        return true;
+    }
+    readonly object verticalLogLock = new object();
+    long lastVerticalLogTicks = 0;
+    void LogVertical(float pitch, float handY, float worldY, float deltaY, bool poseValid)
+    {
+        long now = DateTime.UtcNow.Ticks;
+        if (now - lastVerticalLogTicks < TimeSpan.FromMilliseconds(100).Ticks) return;
+        lastVerticalLogTicks = now;
+        try {
+            string path = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FingersMSFS", "vertical_diagnostics.csv");
+            lock(verticalLogLock) {
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                bool header = !System.IO.File.Exists(path);
+                using (var writer = new System.IO.StreamWriter(path, true)) {
+                    if (header) writer.WriteLine("utc_ticks,pose_valid,head_pitch_deg,hand_head_y_mm,hand_world_y_m,cursor_delta_y_deg");
+                    writer.WriteLine(string.Join(",", now, poseValid ? "1" : "0", pitch.ToString(System.Globalization.CultureInfo.InvariantCulture), handY.ToString(System.Globalization.CultureInfo.InvariantCulture), worldY.ToString(System.Globalization.CultureInfo.InvariantCulture), deltaY.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                }
+            }
+        } catch (Exception ex) { Debug.WriteLine("Vertical diagnostics: " + ex.Message); }
+    }
+    bool previousHeadPitchValid = false;
+    volatile float msfsVerticalHeadTrim = 0f;
+    public void SetMsfsTuning(float horizontal, float vertical, float compensation, float acceleration, float verticalHeadTrim)
+    {
+        msfsHorizontal = horizontal;
+        msfsVertical = vertical;
+        msfsDeadzone = compensation;
+        msfsAcceleration = acceleration;
+        msfsVerticalHeadTrim = verticalHeadTrim;
+    }
 
     public FingersApp.MainWindow ui;
 
@@ -75,7 +177,12 @@ public class Fingers
 
         resetPoint = new Vector2(screenCenter.X, screenCenter.Y * (float)1.25);
 
-        DCS.Monitor(this);
+        if (!msfsMode) DCS.Monitor(this);
+        else {
+            Debug.WriteLine("Fingers MSFS relative input mode active");
+            try { if (!mouseOnlyMode) headPoseReceiver = new HeadPoseReceiver(); }
+            catch (Exception ex) { Debug.WriteLine("OpenXR pose receiver unavailable: " + ex.Message); }
+        }
 
         loop = new LoopListener(this);
         leap = new LeapHandler(this);
@@ -90,6 +197,7 @@ public class Fingers
 
     public async Task<bool> Closing()
     {
+        if (headPoseReceiver != null) headPoseReceiver.Dispose();
         await loop.Closing();
         return true;
     }
@@ -146,8 +254,33 @@ public class Fingers
         return (leftButtonDown || rightButtonDown);
     }
 
+    volatile bool msfsInvertDepth = true;
+    volatile float msfsDepthToVertical = 0.35f;
+    public void SetMsfsDepthSettings(bool invert, float influence)
+    {
+        msfsInvertDepth = invert;
+        msfsDepthToVertical = Math.Max(0f, Math.Min(2f, influence));
+        DisengageHand();
+    }
+    volatile bool msfs3DMode = true;
+    volatile float msfsSensorPitch = 0f;
+    volatile float msfsSensorY = 0f;
+    public void SetMsfs3DMode(bool enabled, float sensorPitch, float sensorY)
+    {
+        msfs3DMode = enabled;
+        msfsSensorPitch = sensorPitch;
+        msfsSensorY = sensorY;
+        DisengageHand();
+    }
+    volatile int msfsHandMode = 0; // 0=left, 1=right, 2=both
+    public void SetMsfsHandMode(int mode) { msfsHandMode = Math.Max(0, Math.Min(2, mode)); DisengageHand(); }
+
     public HandData GetActiveHand(HandData left, HandData right)
     {
+        // In MSFS mode only the left hand is allowed to control the cursor.
+        // Never fall back to the right hand when left tracking is lost.
+        if (msfsMode && msfsHandMode == 0) return left.isActive ? left : new HandData() { isActive = false, isLeft = true };
+        if (msfsMode && msfsHandMode == 1) return right.isActive ? right : new HandData() { isActive = false, isLeft = false };
         HandData activeHand = new HandData() { isActive = false };
 
         // Match to existing hand if we're in some kind of drag event (so we don't snap to another
@@ -209,17 +342,171 @@ public class Fingers
             return;
         }
 
+        bool trackingJustStarted = !currentHand.isActive && activeHand.isActive;
         currentHand = activeHand;
-        Vector2 screenPos = GetScreenPosition(activeHand.pos);
+        if (!activeHand.isActive) return;
+        if (msfsMode && trackingJustStarted && centerOnTrackingStart)
+            System.Windows.Forms.Cursor.Position = new System.Drawing.Point((int)screenCenter.X, (int)screenCenter.Y);
 
-        SetCursorPos(screenPos);
+        if (msfsMode)
+        {
+            // Relative angle is tracked before any Windows cursor movement is generated.
+            // Never read back the Windows cursor position, preventing recirculation.
+            Vector2 angle = msfs3DMode ? GetRelativeAngle(ref activeHand.pos)
+                : new Vector2(activeHand.pos.X, -activeHand.pos.Y) * 0.11459f;
+            Vector2 delta = Vector2.Zero;
+            bool sampleValid = false;
+            TrackedHeadPose head = new TrackedHeadPose();
+            bool poseValid = headPoseReceiver != null && headPoseReceiver.TryGetPose(out head);
+            if (poseValid)
+            {
+                Vector3 worldHand;
+                if (HeadIndependentHand.TryToWorld(new Vector3(activeHand.pos.X, activeHand.pos.Y, -activeHand.pos.Z), head,
+                                                   new Vector3(0f, msfsSensorY * 0.001f, 0f),
+                                                   Quaternion.CreateFromAxisAngle(Vector3.UnitX, msfsSensorPitch * (float)Math.PI / 180f),
+                                                   out worldHand))
+                {
+                    if (previousWorldHandValid)
+                    {
+                        Vector3 diff = worldHand - previousWorldHand;
+                        if (msfs3DMode)
+                        {
+                            // Existing 3D behavior, including deliberate Z-to-Y projection.
+                            float depthDirection = msfsInvertDepth ? -1f : 1f;
+                            float vertical = -diff.Y + depthDirection * msfsDepthToVertical * diff.Z;
+                            delta = new Vector2(diff.X, vertical) * 114.59f;
+                        }
+                        else
+                        {
+                            // True planar mouse mode: only lateral/vertical hand movement
+                            // drives X/Y. Project world-space displacement onto the
+                            // headset-mounted sensor's right/up axes to reject Z movement,
+                            // while preserving world-space head-motion compensation.
+                            Quaternion sensorOrientation = Quaternion.Normalize(
+                                Quaternion.Multiply(head.Orientation,
+                                    Quaternion.CreateFromAxisAngle(Vector3.UnitX,
+                                        msfsSensorPitch * (float)Math.PI / 180f)));
+                            Vector3 sensorRight = Vector3.Transform(Vector3.UnitX, sensorOrientation);
+                            Vector3 up = Vector3.Transform(Vector3.UnitY, sensorOrientation);
+                            delta = new Vector2(Vector3.Dot(diff, sensorRight),
+                                                -Vector3.Dot(diff, up)) * 114.59f;
+                        }
+                        sampleValid = true;
+                    }
+                    // Trim residual pitch-induced Y motion without changing X.
+                    Vector3 forward = Vector3.Transform(new Vector3(0f, 0f, -1f), head.Orientation);
+                    float pitch = (float)(Math.Atan2(forward.Y, Math.Sqrt(forward.X * forward.X + forward.Z * forward.Z)) * 180.0 / Math.PI);
+                    if (previousHeadPitchValid && sampleValid)
+                    {
+                        float pitchDelta = pitch - previousHeadPitchDegrees;
+                        if (Math.Abs(pitchDelta) < 15f)
+                        {
+                            if (calibratingPitch && Math.Abs(pitchDelta) > 0.04f)
+                            {
+                                // Raw world-space vertical error, before the existing trim.
+                                pitchXX += pitchDelta * pitchDelta;
+                                pitchXY += pitchDelta * delta.Y;
+                                pitchSamples++;
+                            }
+                            if (!calibratingPitch) delta.Y += pitchDelta * msfsVerticalHeadTrim;
+                        }
+                    }
+                    float yaw = (float)(Math.Atan2(forward.X, -forward.Z) * 180.0 / Math.PI);
+                    if (previousHeadYawValid && sampleValid)
+                    {
+                        float yawDelta = yaw - previousHeadYawDegrees;
+                        if (yawDelta > 180f) yawDelta -= 360f;
+                        if (yawDelta < -180f) yawDelta += 360f;
+                        if (Math.Abs(yawDelta) < 15f)
+                        {
+                            if (calibratingYaw && Math.Abs(yawDelta) > 0.04f)
+                            { yawXX += yawDelta * yawDelta; yawXY += yawDelta * delta.X; yawSamples++; }
+                            if (!calibratingYaw) delta.X += yawDelta * msfsHorizontalHeadTrim;
+                        }
+                    }
+                    previousHeadYawDegrees = yaw;
+                    previousHeadYawValid = true;
+                    previousHeadPitchDegrees = pitch;
+                    previousHeadPitchValid = true;
+                    LogVertical(pitch, activeHand.pos.Y, worldHand.Y, delta.Y, true);
+                    previousWorldHand = worldHand;
+                    previousWorldHandValid = true;
+                    // Do not mix head-local angle with world-space delta.
+                    previousMsfsAngleValid = false;
+                }
+                else poseValid = false;
+            }
+            if (!poseValid)
+            {
+                LogVertical(0f, activeHand.pos.Y, 0f, delta.Y, false);
+                previousWorldHandValid = false;
+                previousHeadPitchValid = false;
+                previousHeadYawValid = false;
+                if (previousMsfsAngleValid) { delta = angle - previousMsfsAngle; sampleValid = true; }
+                previousMsfsAngle = angle;
+                previousMsfsAngleValid = true;
+            }
+
+            if (sampleValid)
+            {
+                // A tracker reacquisition or hand switch must not cause a huge cursor jump.
+                if (Math.Abs(delta.X) < 12f && Math.Abs(delta.Y) < 12f)
+                {
+                    // A 2D radial dead zone with accumulated movement.
+                    // Do not discard each small frame independently: deliberate slow
+                    // movements must eventually cross the dead-zone boundary.
+                    msfsDeadzoneAccumulator += delta;
+                    float deadzone = Math.Max(0f, msfsDeadzone);
+                    float traveled = msfsDeadzoneAccumulator.Length();
+                    if (traveled <= deadzone)
+                    {
+                        delta = Vector2.Zero;
+                    }
+                    else if (deadzone > 0f)
+                    {
+                        Vector2 direction = msfsDeadzoneAccumulator / traveled;
+                        delta = direction * (traveled - deadzone);
+                        msfsDeadzoneAccumulator = direction * deadzone;
+                    }
+                    else
+                    {
+                        delta = msfsDeadzoneAccumulator;
+                        msfsDeadzoneAccumulator = Vector2.Zero;
+                    }
+                    // Nonlinear acceleration based on angular speed, not distance from center.
+                    // Small, slow corrections remain precise; deliberate fast motions travel farther.
+                    long now = System.Diagnostics.Stopwatch.GetTimestamp();
+                    float dt = msfsLastTick == 0 ? 0.016f : (float)(now - msfsLastTick) / System.Diagnostics.Stopwatch.Frequency;
+                    msfsLastTick = now;
+                    dt = Math.Max(0.005f, Math.Min(dt, 0.10f));
+                    float angularSpeed = delta.Length() / dt;
+                    float t = Math.Max(0f, Math.Min(1f, (angularSpeed - 3f) / 32f));
+                    t = t * t * (3f - 2f * t);
+                    float blend = msfsAcceleration;
+                    float gain = (1f - blend) + blend * (0.20f + 1.80f * t);
+                    Vector2 movement = new Vector2(delta.X * msfsHorizontal, delta.Y * msfsVertical) * (MsfsPixelsPerDegree * gain) + msfsRemainder;
+                    int dx = (int)Math.Truncate(movement.X);
+                    int dy = (int)Math.Truncate(movement.Y);
+                    msfsRemainder = movement - new Vector2(dx, dy);
+                    if (dx != 0 || dy != 0) { Winput.MoveMouseRelative(dx, dy); System.Threading.Interlocked.Increment(ref MouseMovesSent); }
+                }
+            }
+        }
+        else SetCursorPos(GetScreenPosition(activeHand.pos));
     }
 
     // Called when the current hand stops being active; currently we leave left/right mouse buttons
     // down because a user might have them down for other reasons (e.g. holding temporary switches)
     private void DisengageHand()
     {
-
+        previousMsfsAngleValid = false;
+        msfsRemainder = Vector2.Zero;
+        msfsDeadzoneAccumulator = Vector2.Zero;
+        msfsLastTick = 0;
+        previousWorldHandValid = false;
+        previousHeadPitchValid = false;
+        previousHeadYawValid = false;
+        currentHand.isActive = false;
     }
 
     private void ToggleVerticalOffset()

@@ -10,6 +10,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
@@ -26,7 +27,102 @@ namespace FingersApp
     public partial class MainWindow : Window
     {
         Fingers fingers;
+        private HwndSource hotkeySource;
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint modifiers, uint key);
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+        private void InstallHandHotkeys(object sender, EventArgs e)
+        {
+            hotkeySource = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
+            if (hotkeySource == null) return;
+            hotkeySource.AddHook(HandHotkeyHook);
+            for (int id = 1; id <= 3; id++)
+                RegisterHotKey(hotkeySource.Handle, 5300 + id, 0x4003, (uint)(0x30 + id));
+            RegisterHotKey(hotkeySource.Handle, 5310, 0x4006, 0x7B); // Ctrl+Shift+F12
+            RegisterHotKey(hotkeySource.Handle, 5311, 0x4006, 0x7A); // Ctrl+Shift+F11
+        }
+        private IntPtr HandHotkeyHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            // wParam is pointer-sized; converting arbitrary window messages to
+            // Int32 can overflow on 64-bit Windows. Inspect only WM_HOTKEY.
+            if (msg == 0x0312)
+            {
+                long id = wParam.ToInt64();
+                if (id == 5310 || id == 5311)
+                {
+                    CenterCursorNow();
+                    handled = true;
+                }
+                else if (id >= 5301 && id <= 5303)
+                {
+                    MsfsHandModeCombo.SelectedIndex = (int)(id - 5301);
+                    handled = true;
+                }
+            }
+            return IntPtr.Zero;
+        }
+        private void RemoveHandHotkeys(object sender, EventArgs e)
+        {
+            if (hotkeySource == null) return;
+            for (int id = 1; id <= 3; id++)
+                UnregisterHotKey(hotkeySource.Handle, 5300 + id);
+            UnregisterHotKey(hotkeySource.Handle, 5310);
+            UnregisterHotKey(hotkeySource.Handle, 5311);
+            hotkeySource.RemoveHook(HandHotkeyHook);
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool GetClientRect(IntPtr hWnd, out WinRect rect);
+        [DllImport("user32.dll")]
+        private static extern bool ClientToScreen(IntPtr hWnd, ref WinPoint point);
+        [StructLayout(LayoutKind.Sequential)]
+        private struct WinRect { public int Left, Top, Right, Bottom; }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct WinPoint { public int X, Y; }
+
+        private void CenterCursorNow()
+        {
+            // Best effort for MSFS VR: focus on the center of the simulator's
+            // rendered desktop viewport, not the Windows primary desktop.
+            // The in-headset 3D cursor is internal to MSFS and may not be
+            // exactly centered by a Windows pointer movement.
+            var current = System.Windows.Forms.Cursor.Position;
+            var target = new System.Drawing.Point(
+                System.Windows.Forms.Screen.PrimaryScreen.Bounds.Left +
+                    System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width / 2,
+                System.Windows.Forms.Screen.PrimaryScreen.Bounds.Top +
+                    System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height / 2);
+            foreach (var process in Process.GetProcesses())
+            {
+                try
+                {
+                    string name = process.ProcessName;
+                    if (name.IndexOf("FlightSimulator", StringComparison.OrdinalIgnoreCase) < 0 &&
+                        name.IndexOf("MicrosoftFlightSimulator", StringComparison.OrdinalIgnoreCase) < 0)
+                        continue;
+                    IntPtr hwnd = process.MainWindowHandle;
+                    WinRect rect;
+                    if (hwnd == IntPtr.Zero || !GetClientRect(hwnd, out rect)) continue;
+                    var clientMid = new WinPoint { X = (rect.Right - rect.Left) / 2,
+                                                   Y = (rect.Bottom - rect.Top) / 2 };
+                    if (!ClientToScreen(hwnd, ref clientMid)) continue;
+                    target = new System.Drawing.Point(clientMid.X, clientMid.Y);
+                    break;
+                }
+                catch { }
+                finally { process.Dispose(); }
+            }
+            System.Windows.Forms.Cursor.Position = target;
+            // Some MSFS VR pointer paths require a real relative mouse packet.
+            // This one-pixel pulse returns to the same desktop location.
+            Winput.MoveMouseRelative(1, 0);
+            Winput.MoveMouseRelative(-1, 0);
+        }
+        private bool pitchCalibrationInProgress = false;
+        private bool yawCalibrationInProgress = false;
         private bool closing = false;
+        private DispatcherTimer poseStatusTimer;
         //Thread FingersThread;
 
         [DllImport("user32.dll")]
@@ -36,6 +132,33 @@ namespace FingersApp
         {
             CheckMultipleInstanceofApp();
             InitializeComponent();
+            SourceInitialized += InstallHandHotkeys;
+            Closed += RemoveHandHotkeys;
+            MsfsTuningPanel.Visibility = Visibility.Visible; // Show tuning controls even when launched directly; MSFS mode itself still requires START_MSFS.cmd.
+            MsfsHorizontalSlider.Value = ReadTuning("Horizontal", 2);
+            MsfsVerticalSlider.Value = ReadTuning("Vertical", 4);
+            MsfsCompensationSlider.Value = ReadTuning("Compensation", 0);
+            MsfsAccelerationSlider.Value = ReadTuning("Acceleration", 0.75);
+            MsfsVerticalHeadTrimSlider.Value = ReadTuning("VerticalHeadTrim", 0);
+            MsfsHorizontalHeadTrimSlider.Value = ReadTuning("HorizontalHeadTrim", 0);
+            MsfsCenterOnTrackCheckBox.IsChecked = ReadTuning("CenterOnTrack", 0) != 0;
+            Msfs3DCheckBox.IsChecked = ReadTuning("3DMode", 1) != 0;
+            MsfsSensorPitchSlider.Value = ReadTuning("SensorPitch", 0);
+            MsfsSensorYSlider.Value = ReadTuning("SensorY", 0);
+            MsfsInvertDepthCheckBox.IsChecked = ReadTuning("InvertDepth", 1) != 0;
+            MsfsDepthInfluenceSlider.Value = ReadTuning("DepthInfluence", 0.35);
+            MsfsHandModeCombo.SelectedIndex = (int)Math.Max(0, Math.Min(2, ReadTuning("HandMode", 0)));
+            poseStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+            poseStatusTimer.Tick += (s, e) =>
+            {
+                MsfsPoseStatus.Text = fingers != null && fingers.HasFreshHeadPose ? "OpenXR: headset data OK" : "OpenXR: bez dat headsetu";
+                if (fingers != null)
+                    MsfsInputStatus.Text = "MSFS mode: " + (fingers.IsMsfsInputMode ? "ANO" : "NIE")
+                        + " | Leap snimky: " + fingers.LeapFramesSeen
+                        + " | L: " + fingers.LeapLeftSeen + " P: " + fingers.LeapRightSeen
+                        + " | Mouse udalosti: " + fingers.MouseMovesSent;
+            };
+            poseStatusTimer.Start();
         }
 
         private async void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
@@ -46,6 +169,7 @@ namespace FingersApp
             }
 
             e.Cancel = true;
+            if (poseStatusTimer != null) poseStatusTimer.Stop();
             if (fingers != null)
                 await fingers.Closing();
             closing = true;
@@ -65,19 +189,21 @@ namespace FingersApp
 
             for (int i = 0; i < prc.Length; i++)
             {
-                if (prc[i] == current) continue;
+                if (prc[i].Id == current.Id) continue;
                 IntPtr hWnd = prc[i].MainWindowHandle;
                 if (hWnd != IntPtr.Zero)
                     SetForegroundWindow(hWnd);
             }
                 
+            // Another instance is already running. Do not kill this process silently.
+            MessageBox.Show("Fingers uz bezi. Zavri povodnu instanciu pred spustenim novej.", "Fingers", MessageBoxButton.OK, MessageBoxImage.Information);
             System.Environment.Exit(0);
             return true;
         }
 
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
-            Task workerTask = Task.Run(() => { fingers = new Fingers(this); });
+            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex); fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value); fingers.SetMsfsHorizontalTrim((float)MsfsHorizontalHeadTrimSlider.Value); fingers.SetCenterOnTrackingStart(MsfsCenterOnTrackCheckBox.IsChecked == true); fingers.SetMsfsDepthSettings(MsfsInvertDepthCheckBox.IsChecked == true, (float)MsfsDepthInfluenceSlider.Value); }); });
 
             /*
             FingersThread = new Thread(() =>
@@ -181,6 +307,170 @@ namespace FingersApp
             // loads the previous data, so we don't need/want to call back to it
             if (text != null && fingers != null)
                 fingers.SetLeapProfile(text, false);
+        }
+
+        private static string TuningFile
+        {
+            get
+            {
+                string folder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FingersMSFS");
+                return System.IO.Path.Combine(folder, "tuning.txt");
+            }
+        }
+
+        private static double ReadTuning(string key, double fallback)
+        {
+            try
+            {
+                if (!System.IO.File.Exists(TuningFile)) return fallback;
+                foreach (string line in System.IO.File.ReadAllLines(TuningFile))
+                {
+                    string[] pair = line.Split(new[] { '=' }, 2);
+                    double value;
+                    if (pair.Length == 2 && pair[0] == key &&
+                        double.TryParse(pair[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value))
+                        return value;
+                }
+            }
+            catch (Exception ex) { Debug.WriteLine("MSFS tuning load: " + ex.Message); }
+            return fallback;
+        }
+
+        private void SaveTuning()
+        {
+            try
+            {
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(TuningFile));
+                System.IO.File.WriteAllLines(TuningFile, new[] {
+                    "Horizontal=" + MsfsHorizontalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "Vertical=" + MsfsVerticalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "Compensation=" + MsfsCompensationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "Acceleration=" + MsfsAccelerationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "VerticalHeadTrim=" + MsfsVerticalHeadTrimSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "HorizontalHeadTrim=" + MsfsHorizontalHeadTrimSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "CenterOnTrack=" + (MsfsCenterOnTrackCheckBox.IsChecked == true ? "1" : "0"),
+                    "HandMode=" + MsfsHandModeCombo.SelectedIndex.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "3DMode=" + (Msfs3DCheckBox.IsChecked == true ? "1" : "0"),
+                    "SensorPitch=" + MsfsSensorPitchSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "SensorY=" + MsfsSensorYSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "InvertDepth=" + (MsfsInvertDepthCheckBox.IsChecked == true ? "1" : "0"),
+                    "DepthInfluence=" + MsfsDepthInfluenceSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                });
+            }
+            catch (Exception ex) { Debug.WriteLine("MSFS tuning save: " + ex.Message); }
+        }
+
+        private void MsfsNudgeTrim(object sender, RoutedEventArgs e)
+        {
+            var button = sender as System.Windows.Controls.Button;
+            string tag = button == null ? "" : (button.Tag as string ?? "");
+            var slider = tag.StartsWith("H") ? MsfsHorizontalHeadTrimSlider : MsfsVerticalHeadTrimSlider;
+            if (slider == null || tag.Length < 2) return;
+            double step = tag.EndsWith("+") ? 0.0001 : -0.0001;
+            slider.Value = Math.Max(slider.Minimum, Math.Min(slider.Maximum,
+                Math.Round(slider.Value + step, 4)));
+        }
+
+        private void MsfsHorizontalTrimChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (MsfsHorizontalHeadTrimSlider == null) return;
+            if (fingers != null) fingers.SetMsfsHorizontalTrim((float)MsfsHorizontalHeadTrimSlider.Value);
+            if (MsfsVerticalHeadTrimSlider != null && MsfsCenterOnTrackCheckBox != null) SaveTuning();
+        }
+        private void MsfsCenterChanged(object sender, RoutedEventArgs e)
+        {
+            if (MsfsCenterOnTrackCheckBox == null) return;
+            if (fingers != null) fingers.SetCenterOnTrackingStart(MsfsCenterOnTrackCheckBox.IsChecked == true);
+            if (MsfsVerticalHeadTrimSlider != null && MsfsHorizontalHeadTrimSlider != null) SaveTuning();
+        }
+        private void MsfsYawCalibrateClicked(object sender, RoutedEventArgs e)
+        {
+            if (fingers == null || !fingers.HasFreshHeadPose)
+            {
+                MessageBox.Show("Spusti MSFS vo VR a over OpenXR: headset data OK.", "Fingers");
+                return;
+            }
+            if (!yawCalibrationInProgress)
+            {
+                fingers.StartYawCalibration();
+                yawCalibrationInProgress = true;
+                MsfsYawCalibrateButton.Content = "Ukoncit a ulozit horizontalnu kalibraciu";
+                MsfsYawCalibrateHelp.Text = "Drz zapastie nehybne a otacaj hlavou vlavo/vpravo 5-10x.";
+            }
+            else
+            {
+                float correction;
+                int samples;
+                bool ok = fingers.FinishYawCalibration(out correction, out samples);
+                yawCalibrationInProgress = false;
+                MsfsYawCalibrateButton.Content = "Spustit kalibraciu horizontalnej kompenzacie";
+                if (ok)
+                {
+                    MsfsHorizontalHeadTrimSlider.Value = correction;
+                    MsfsYawCalibrateHelp.Text = "Ulozene, vzorky: " + samples;
+                    SaveTuning();
+                }
+                else MsfsYawCalibrateHelp.Text = "Kalibracia nemala dostatok vzoriek (" + samples + ").";
+            }
+        }
+
+        private void MsfsPitchCalibrateClicked(object sender, RoutedEventArgs e)
+        {
+            if (fingers == null || !fingers.HasFreshHeadPose)
+            {
+                MessageBox.Show("Spusti MSFS vo VR a over OpenXR: headset data OK.", "Fingers");
+                return;
+            }
+            if (!pitchCalibrationInProgress)
+            {
+                fingers.StartPitchCalibration();
+                pitchCalibrationInProgress = true;
+                MsfsPitchCalibrateButton.Content = "Ukoncit a ulozit kalibraciu";
+                MsfsPitchCalibrateHelp.Text = "Drz zapastie nehybne v priestore a pomaly zdvihaj/spustaj hlavu 5-10x.";
+            }
+            else
+            {
+                float correction;
+                int samples;
+                bool ok = fingers.FinishPitchCalibration(out correction, out samples);
+                pitchCalibrationInProgress = false;
+                MsfsPitchCalibrateButton.Content = "Spustit kalibraciu vertikalnej kompenzacie";
+                if (ok)
+                {
+                    MsfsVerticalHeadTrimSlider.Value = correction;
+                    MsfsPitchCalibrateHelp.Text = "Ulozene. Pocet vzoriek: " + samples;
+                    SaveTuning();
+                }
+                else
+                {
+                    MsfsPitchCalibrateHelp.Text = "Malo vzoriek (" + samples + "). Zopakuj pomale pohyby hlavy, zapastie drz nehybne.";
+                }
+            }
+        }
+
+        private void Msfs3DChanged(object sender, RoutedEventArgs e) { Apply3DSettings(); }
+        private void Msfs3DSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e) { Apply3DSettings(); }
+        private void Apply3DSettings()
+        {
+            if (Msfs3DCheckBox == null || MsfsSensorPitchSlider == null || MsfsSensorYSlider == null || MsfsInvertDepthCheckBox == null || MsfsDepthInfluenceSlider == null) return;
+            if (fingers != null) { fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value); fingers.SetMsfsDepthSettings(MsfsInvertDepthCheckBox.IsChecked == true, (float)MsfsDepthInfluenceSlider.Value); }
+            if (MsfsHorizontalSlider != null && MsfsHandModeCombo != null && MsfsVerticalHeadTrimSlider != null) SaveTuning();
+        }
+
+        private void MsfsHandModeChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            if (MsfsHandModeCombo == null) return;
+            if (fingers != null) fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex);
+            if (MsfsHorizontalSlider != null && MsfsVerticalHeadTrimSlider != null) SaveTuning();
+        }
+
+        private void MsfsSlidersChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (fingers == null || MsfsHorizontalSlider == null || MsfsVerticalSlider == null || MsfsCompensationSlider == null || MsfsAccelerationSlider == null || MsfsVerticalHeadTrimSlider == null) return;
+            fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value,
+                                  (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value,
+                                  (float)MsfsVerticalHeadTrimSlider.Value);
+            SaveTuning();
         }
 
         private void SensitivityValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

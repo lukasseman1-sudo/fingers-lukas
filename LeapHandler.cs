@@ -101,13 +101,15 @@ class LeapHandler
         {
             ref HandData data = ref ((hand.IsLeft) ? ref leftHand : ref rightHand);
 
+            // Anatomical wrist joint where the hand meets the forearm (Leap Hand.WristPosition).
+            // Keep index metacarpal only for the existing angle/button heuristic.
             Bone mcp = hand.Fingers.Find(x => x.Type == Finger.FingerType.TYPE_INDEX)
                                    .Bone(Bone.BoneType.TYPE_METACARPAL);
 
             // Convert to HandData coordinate system
             // Can also consider using StabilizedPalmPosition
             data.pos = Util.RotatePosition(
-              new Vector3(-mcp.NextJoint[0], -mcp.NextJoint[2], mcp.NextJoint[1]), mountAngleOffsetRadians);
+              new Vector3(-hand.WristPosition[0], -hand.WristPosition[2], hand.WristPosition[1]), mountAngleOffsetRadians);
 
             data.pos.X = data.pos.X + mountPositionOffset.X; // horizontal
             data.pos.Y = data.pos.Y + mountPositionOffset.Y; // upness
@@ -120,8 +122,8 @@ class LeapHandler
             data.angle = mcp.NextJoint[2] + mcp.NextJoint[0];
         }
 
-        if (frame.Hands.Count != 0)
-            fingers.HandleHands(leftHand, rightHand);
+        fingers.ReportLeapFrame(leftHand.isActive, rightHand.isActive);
+        fingers.HandleHands(leftHand, rightHand);
     }
 
     public void OnDeviceFailure(object sender, DeviceFailureEventArgs args)
