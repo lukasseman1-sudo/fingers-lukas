@@ -101,15 +101,15 @@ class LeapHandler
         {
             ref HandData data = ref ((hand.IsLeft) ? ref leftHand : ref rightHand);
 
-            // Wrist-side (proximal) joint of index metacarpal; less affected by finger articulation.
-            // Avoid using the thumb tip, which amplifies small finger motions.
+            // Anatomical wrist joint where the hand meets the forearm (Leap Hand.WristPosition).
+            // Keep index metacarpal only for the existing angle/button heuristic.
             Bone mcp = hand.Fingers.Find(x => x.Type == Finger.FingerType.TYPE_INDEX)
                                    .Bone(Bone.BoneType.TYPE_METACARPAL);
 
             // Convert to HandData coordinate system
             // Can also consider using StabilizedPalmPosition
             data.pos = Util.RotatePosition(
-              new Vector3(-mcp.PrevJoint[0], -mcp.PrevJoint[2], mcp.PrevJoint[1]), mountAngleOffsetRadians);
+              new Vector3(-hand.WristPosition[0], -hand.WristPosition[2], hand.WristPosition[1]), mountAngleOffsetRadians);
 
             data.pos.X = data.pos.X + mountPositionOffset.X; // horizontal
             data.pos.Y = data.pos.Y + mountPositionOffset.Y; // upness
