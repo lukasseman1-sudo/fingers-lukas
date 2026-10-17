@@ -63,6 +63,7 @@ namespace FingersApp
             hotkeySource.RemoveHook(HandHotkeyHook);
         }
 
+        private bool pitchCalibrationInProgress = false;
         private bool closing = false;
         private DispatcherTimer poseStatusTimer;
         //Thread FingersThread;
@@ -292,6 +293,40 @@ namespace FingersApp
                 });
             }
             catch (Exception ex) { Debug.WriteLine("MSFS tuning save: " + ex.Message); }
+        }
+
+        private void MsfsPitchCalibrateClicked(object sender, RoutedEventArgs e)
+        {
+            if (fingers == null || !fingers.HasFreshHeadPose)
+            {
+                MessageBox.Show("Spusti MSFS vo VR a over OpenXR: headset data OK.", "Fingers");
+                return;
+            }
+            if (!pitchCalibrationInProgress)
+            {
+                fingers.StartPitchCalibration();
+                pitchCalibrationInProgress = true;
+                MsfsPitchCalibrateButton.Content = "Ukoncit a ulozit kalibraciu";
+                MsfsPitchCalibrateHelp.Text = "Drz zapastie nehybne v priestore a pomaly zdvihaj/spustaj hlavu 5-10x.";
+            }
+            else
+            {
+                float correction;
+                int samples;
+                bool ok = fingers.FinishPitchCalibration(out correction, out samples);
+                pitchCalibrationInProgress = false;
+                MsfsPitchCalibrateButton.Content = "Spustit kalibraciu vertikalnej kompenzacie";
+                if (ok)
+                {
+                    MsfsVerticalHeadTrimSlider.Value = correction;
+                    MsfsPitchCalibrateHelp.Text = "Ulozene. Pocet vzoriek: " + samples;
+                    SaveTuning();
+                }
+                else
+                {
+                    MsfsPitchCalibrateHelp.Text = "Malo vzoriek (" + samples + "). Zopakuj pomale pohyby hlavy, zapastie drz nehybne.";
+                }
+            }
         }
 
         private void Msfs3DChanged(object sender, RoutedEventArgs e) { Apply3DSettings(); }
