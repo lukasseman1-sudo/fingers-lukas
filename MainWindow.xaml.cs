@@ -114,12 +114,14 @@ namespace FingersApp
 
             for (int i = 0; i < prc.Length; i++)
             {
-                if (prc[i] == current) continue;
+                if (prc[i].Id == current.Id) continue;
                 IntPtr hWnd = prc[i].MainWindowHandle;
                 if (hWnd != IntPtr.Zero)
                     SetForegroundWindow(hWnd);
             }
                 
+            // Another instance is already running. Do not kill this process silently.
+            MessageBox.Show("Fingers uz bezi. Zavri povodnu instanciu pred spustenim novej.", "Fingers", MessageBoxButton.OK, MessageBoxImage.Information);
             System.Environment.Exit(0);
             return true;
         }
@@ -285,7 +287,7 @@ namespace FingersApp
         {
             if (Msfs3DCheckBox == null || MsfsSensorPitchSlider == null || MsfsSensorYSlider == null) return;
             if (fingers != null) fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value);
-            if (MsfsHorizontalSlider != null && MsfsHandModeCombo != null) SaveTuning();
+            if (MsfsHorizontalSlider != null && MsfsHandModeCombo != null && MsfsVerticalHeadTrimSlider != null) SaveTuning();
         }
 
         private void MsfsHandModeChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
