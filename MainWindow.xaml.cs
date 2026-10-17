@@ -87,7 +87,15 @@ namespace FingersApp
             MsfsSensorYSlider.Value = ReadTuning("SensorY", 0);
             MsfsHandModeCombo.SelectedIndex = (int)Math.Max(0, Math.Min(2, ReadTuning("HandMode", 0)));
             poseStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-            poseStatusTimer.Tick += (s, e) => { MsfsPoseStatus.Text = fingers != null && fingers.HasFreshHeadPose ? "OpenXR: headset data OK" : "OpenXR: bez dat headsetu"; };
+            poseStatusTimer.Tick += (s, e) =>
+            {
+                MsfsPoseStatus.Text = fingers != null && fingers.HasFreshHeadPose ? "OpenXR: headset data OK" : "OpenXR: bez dat headsetu";
+                if (fingers != null)
+                    MsfsInputStatus.Text = "MSFS mode: " + (fingers.IsMsfsInputMode ? "ANO" : "NIE")
+                        + " | Leap snimky: " + fingers.LeapFramesSeen
+                        + " | L: " + fingers.LeapLeftSeen + " P: " + fingers.LeapRightSeen
+                        + " | Mouse udalosti: " + fingers.MouseMovesSent;
+            };
             poseStatusTimer.Start();
         }
 
