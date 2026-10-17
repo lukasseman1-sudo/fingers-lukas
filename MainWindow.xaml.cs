@@ -291,7 +291,7 @@ namespace FingersApp
         private void MsfsHandModeChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
             if (MsfsHandModeCombo == null) return;
-            if (fingers != null) fingers.SetMsfsLeftOnly(MsfsLeftOnlyCheckBox.IsChecked == true);
+            if (fingers != null) fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex);
             if (MsfsHorizontalSlider != null && MsfsVerticalHeadTrimSlider != null) SaveTuning();
         }
 
