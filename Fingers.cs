@@ -303,7 +303,7 @@ public class Fingers
             bool sampleValid = false;
             TrackedHeadPose head = new TrackedHeadPose();
             bool poseValid = headPoseReceiver != null && headPoseReceiver.TryGetPose(out head);
-            if (poseValid && msfs3DMode)
+            if (poseValid)
             {
                 Vector3 worldHand;
                 if (HeadIndependentHand.TryToWorld(new Vector3(activeHand.pos.X, activeHand.pos.Y, -activeHand.pos.Z), head,
@@ -314,7 +314,12 @@ public class Fingers
                     if (previousWorldHandValid)
                     {
                         Vector3 diff = worldHand - previousWorldHand;
-                        delta = new Vector2(diff.X, -diff.Y) * 114.59f;
+                        // Both modes must compensate headset motion in world space.
+                        // Classic uses depth-normalized world displacement (angle-like
+                        // sensitivity) rather than raw head-relative atan2 deltas.
+                        float scale = msfs3DMode ? 114.59f
+                            : 57.2958f / Math.Max(0.20f, Math.Abs(activeHand.pos.Z) * 0.001f);
+                        delta = new Vector2(diff.X, -diff.Y) * scale;
                         sampleValid = true;
                     }
                     // Trim residual pitch-induced Y motion without changing X.
@@ -336,7 +341,7 @@ public class Fingers
                 }
                 else poseValid = false;
             }
-            if (!poseValid || !msfs3DMode)
+            if (!poseValid)
             {
                 LogVertical(0f, activeHand.pos.Y, 0f, delta.Y, false);
                 previousWorldHandValid = false;
