@@ -76,6 +76,31 @@ public class Fingers
     Vector3 previousWorldHand;
     bool previousWorldHandValid = false;
     float previousHeadPitchDegrees;
+    volatile bool calibratingPitch;
+    double pitchXX, pitchXY;
+    int pitchSamples;
+    public void StartPitchCalibration()
+    {
+        pitchXX = pitchXY = 0;
+        pitchSamples = 0;
+        calibratingPitch = true;
+        DisengageHand();
+    }
+    // Keep the wrist stationary in WORLD space while moving only the head up/down.
+    // The measured residual Y divided by pitch change is the trim that cancels it.
+    public bool FinishPitchCalibration(out float correction, out int count)
+    {
+        calibratingPitch = false;
+        count = pitchSamples;
+        correction = msfsVerticalHeadTrim;
+        if (pitchSamples < 12 || pitchXX < 2.0) return false;
+        double fitted = -pitchXY / pitchXX;
+        if (double.IsNaN(fitted) || double.IsInfinity(fitted) || Math.Abs(fitted) > 12) return false;
+        correction = (float)fitted;
+        msfsVerticalHeadTrim = correction;
+        DisengageHand();
+        return true;
+    }
     readonly object verticalLogLock = new object();
     long lastVerticalLogTicks = 0;
     void LogVertical(float pitch, float handY, float worldY, float deltaY, bool poseValid)
@@ -329,7 +354,16 @@ public class Fingers
                     {
                         float pitchDelta = pitch - previousHeadPitchDegrees;
                         if (Math.Abs(pitchDelta) < 15f)
-                            delta.Y += pitchDelta * msfsVerticalHeadTrim;
+                        {
+                            if (calibratingPitch && Math.Abs(pitchDelta) > 0.04f)
+                            {
+                                // Raw world-space vertical error, before the existing trim.
+                                pitchXX += pitchDelta * pitchDelta;
+                                pitchXY += pitchDelta * delta.Y;
+                                pitchSamples++;
+                            }
+                            if (!calibratingPitch) delta.Y += pitchDelta * msfsVerticalHeadTrim;
+                        }
                     }
                     previousHeadPitchDegrees = pitch;
                     previousHeadPitchValid = true;
