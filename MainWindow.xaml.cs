@@ -72,11 +72,52 @@ namespace FingersApp
             hotkeySource.RemoveHook(HandHotkeyHook);
         }
 
+        [DllImport("user32.dll")]
+        private static extern bool GetClientRect(IntPtr hWnd, out WinRect rect);
+        [DllImport("user32.dll")]
+        private static extern bool ClientToScreen(IntPtr hWnd, ref WinPoint point);
+        [StructLayout(LayoutKind.Sequential)]
+        private struct WinRect { public int Left, Top, Right, Bottom; }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct WinPoint { public int X, Y; }
+
         private void CenterCursorNow()
         {
-            var area = System.Windows.Forms.Screen.PrimaryScreen.Bounds;
-            System.Windows.Forms.Cursor.Position = new System.Drawing.Point(
-                area.Left + area.Width / 2, area.Top + area.Height / 2);
+            // Best effort for MSFS VR: focus on the center of the simulator's
+            // rendered desktop viewport, not the Windows primary desktop.
+            // The in-headset 3D cursor is internal to MSFS and may not be
+            // exactly centered by a Windows pointer movement.
+            var current = System.Windows.Forms.Cursor.Position;
+            var target = new System.Drawing.Point(
+                System.Windows.Forms.Screen.PrimaryScreen.Bounds.Left +
+                    System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width / 2,
+                System.Windows.Forms.Screen.PrimaryScreen.Bounds.Top +
+                    System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height / 2);
+            foreach (var process in Process.GetProcesses())
+            {
+                try
+                {
+                    string name = process.ProcessName;
+                    if (name.IndexOf("FlightSimulator", StringComparison.OrdinalIgnoreCase) < 0 &&
+                        name.IndexOf("MicrosoftFlightSimulator", StringComparison.OrdinalIgnoreCase) < 0)
+                        continue;
+                    IntPtr hwnd = process.MainWindowHandle;
+                    WinRect rect;
+                    if (hwnd == IntPtr.Zero || !GetClientRect(hwnd, out rect)) continue;
+                    var clientMid = new WinPoint { X = (rect.Right - rect.Left) / 2,
+                                                   Y = (rect.Bottom - rect.Top) / 2 };
+                    if (!ClientToScreen(hwnd, ref clientMid)) continue;
+                    target = new System.Drawing.Point(clientMid.X, clientMid.Y);
+                    break;
+                }
+                catch { }
+                finally { process.Dispose(); }
+            }
+            System.Windows.Forms.Cursor.Position = target;
+            // Some MSFS VR pointer paths require a real relative mouse packet.
+            // This one-pixel pulse returns to the same desktop location.
+            Winput.MoveMouseRelative(1, 0);
+            Winput.MoveMouseRelative(-1, 0);
         }
         private bool pitchCalibrationInProgress = false;
         private bool yawCalibrationInProgress = false;
