@@ -386,9 +386,9 @@ public class Fingers
                                 Quaternion.Multiply(head.Orientation,
                                     Quaternion.CreateFromAxisAngle(Vector3.UnitX,
                                         msfsSensorPitch * (float)Math.PI / 180f)));
-                            Vector3 right = Vector3.Transform(Vector3.UnitX, sensorOrientation);
+                            Vector3 sensorRight = Vector3.Transform(Vector3.UnitX, sensorOrientation);
                             Vector3 up = Vector3.Transform(Vector3.UnitY, sensorOrientation);
-                            delta = new Vector2(Vector3.Dot(diff, right),
+                            delta = new Vector2(Vector3.Dot(diff, sensorRight),
                                                 -Vector3.Dot(diff, up)) * 114.59f;
                         }
                         sampleValid = true;
