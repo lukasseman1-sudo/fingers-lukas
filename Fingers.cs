@@ -44,6 +44,17 @@ public class Fingers
 
     Vector4 DCSWindow = new Vector4(0, 0, 0, 0);
 
+    public volatile int LeapFramesSeen;
+    public volatile int LeapLeftSeen;
+    public volatile int LeapRightSeen;
+    public volatile int MouseMovesSent;
+    public bool IsMsfsInputMode { get { return msfsMode; } }
+    public void ReportLeapFrame(bool left, bool right)
+    {
+        System.Threading.Interlocked.Increment(ref LeapFramesSeen);
+        LeapLeftSeen = left ? 1 : 0;
+        LeapRightSeen = right ? 1 : 0;
+    }
     // The last hand we tracked
     HandData currentHand;
 
@@ -358,7 +369,7 @@ public class Fingers
                     int dx = (int)Math.Truncate(movement.X);
                     int dy = (int)Math.Truncate(movement.Y);
                     msfsRemainder = movement - new Vector2(dx, dy);
-                    if (dx != 0 || dy != 0) Winput.MoveMouseRelative(dx, dy);
+                    if (dx != 0 || dy != 0) { Winput.MoveMouseRelative(dx, dy); System.Threading.Interlocked.Increment(ref MouseMovesSent); }
                 }
             }
         }
