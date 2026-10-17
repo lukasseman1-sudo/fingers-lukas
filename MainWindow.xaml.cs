@@ -42,11 +42,16 @@ namespace FingersApp
         }
         private IntPtr HandHotkeyHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
-            int id = wParam.ToInt32();
-            if (msg == 0x0312 && id >= 5301 && id <= 5303)
+            // wParam is pointer-sized; converting arbitrary window messages to
+            // Int32 can overflow on 64-bit Windows. Inspect only WM_HOTKEY.
+            if (msg == 0x0312)
             {
-                MsfsHandModeCombo.SelectedIndex = id - 5301;
-                handled = true;
+                long id = wParam.ToInt64();
+                if (id >= 5301 && id <= 5303)
+                {
+                    MsfsHandModeCombo.SelectedIndex = (int)(id - 5301);
+                    handled = true;
+                }
             }
             return IntPtr.Zero;
         }
