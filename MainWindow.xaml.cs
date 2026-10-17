@@ -89,6 +89,8 @@ namespace FingersApp
             Msfs3DCheckBox.IsChecked = ReadTuning("3DMode", 1) != 0;
             MsfsSensorPitchSlider.Value = ReadTuning("SensorPitch", 0);
             MsfsSensorYSlider.Value = ReadTuning("SensorY", 0);
+            MsfsInvertDepthCheckBox.IsChecked = ReadTuning("InvertDepth", 1) != 0;
+            MsfsDepthInfluenceSlider.Value = ReadTuning("DepthInfluence", 0.35);
             MsfsHandModeCombo.SelectedIndex = (int)Math.Max(0, Math.Min(2, ReadTuning("HandMode", 0)));
             poseStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             poseStatusTimer.Tick += (s, e) =>
@@ -145,7 +147,7 @@ namespace FingersApp
 
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
-            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex); fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value); fingers.SetMsfsHorizontalTrim((float)MsfsHorizontalHeadTrimSlider.Value); fingers.SetCenterOnTrackingStart(MsfsCenterOnTrackCheckBox.IsChecked == true); }); });
+            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex); fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value); fingers.SetMsfsHorizontalTrim((float)MsfsHorizontalHeadTrimSlider.Value); fingers.SetCenterOnTrackingStart(MsfsCenterOnTrackCheckBox.IsChecked == true); fingers.SetMsfsDepthSettings(MsfsInvertDepthCheckBox.IsChecked == true, (float)MsfsDepthInfluenceSlider.Value); }); });
 
             /*
             FingersThread = new Thread(() =>
@@ -294,7 +296,9 @@ namespace FingersApp
                     "HandMode=" + MsfsHandModeCombo.SelectedIndex.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "3DMode=" + (Msfs3DCheckBox.IsChecked == true ? "1" : "0"),
                     "SensorPitch=" + MsfsSensorPitchSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    "SensorY=" + MsfsSensorYSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    "SensorY=" + MsfsSensorYSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "InvertDepth=" + (MsfsInvertDepthCheckBox.IsChecked == true ? "1" : "0"),
+                    "DepthInfluence=" + MsfsDepthInfluenceSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 });
             }
             catch (Exception ex) { Debug.WriteLine("MSFS tuning save: " + ex.Message); }
@@ -381,8 +385,8 @@ namespace FingersApp
         private void Msfs3DSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e) { Apply3DSettings(); }
         private void Apply3DSettings()
         {
-            if (Msfs3DCheckBox == null || MsfsSensorPitchSlider == null || MsfsSensorYSlider == null) return;
-            if (fingers != null) fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value);
+            if (Msfs3DCheckBox == null || MsfsSensorPitchSlider == null || MsfsSensorYSlider == null || MsfsInvertDepthCheckBox == null || MsfsDepthInfluenceSlider == null) return;
+            if (fingers != null) { fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value); fingers.SetMsfsDepthSettings(MsfsInvertDepthCheckBox.IsChecked == true, (float)MsfsDepthInfluenceSlider.Value); }
             if (MsfsHorizontalSlider != null && MsfsHandModeCombo != null && MsfsVerticalHeadTrimSlider != null) SaveTuning();
         }
 
