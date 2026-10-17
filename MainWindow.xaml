@@ -8,7 +8,7 @@
         mc:Ignorable="d"
         Loaded="Page_Loaded"
         Closing="Window_Closing"
-        ResizeMode="CanMinimize" Height="1230" Width="350"
+        ResizeMode="CanMinimize" Height="900" Width="350"
         Title="Fingers" Background="#FF0F0F0F">
     <Window.Resources>
         <ResourceDictionary>
@@ -227,7 +227,8 @@
             </Button>
         </Grid>
         <Rectangle Fill="#FFF4F4F5" HorizontalAlignment="Center" Height="1" Margin="32,114,32,0" Stroke="#222" VerticalAlignment="Top" Width="274"/>
-        <StackPanel x:Name="MsfsTuningPanel" Visibility="Visible" Margin="18,360,18,0" VerticalAlignment="Top">
+        <ScrollViewer Margin="18,360,18,16" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel x:Name="MsfsTuningPanel" Visibility="Visible">
             <TextBlock Text="MSFS 2024 - ovladanie rukou" Foreground="White" FontWeight="Bold" Margin="0,0,0,8"/>
             <TextBlock Text="Aktivna ruka (aj cez Ctrl+Alt+1 / 2 / 3)" Foreground="White"/>
             <ComboBox x:Name="MsfsHandModeCombo" SelectionChanged="MsfsHandModeChanged" SelectedIndex="0" Margin="0,3,0,10" Background="White" Foreground="Black">
@@ -264,5 +265,6 @@
             <TextBlock x:Name="MsfsPoseStatus" Text="OpenXR: cakam na data headsetu" Foreground="#FFFFC670" FontWeight="Bold" Margin="0,8,0,0"/>
             <TextBlock Text="3D rezim vyzaduje aktivne OpenXR udaje. Pri strate dat pouzije zalozny rezim." Foreground="#FFAAAAAA" FontSize="10" TextWrapping="Wrap" Margin="0,7,0,0"/>
         </StackPanel>
+        </ScrollViewer>
     </Grid>
 </Window>
