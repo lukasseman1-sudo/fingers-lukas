@@ -122,8 +122,8 @@ class LeapHandler
             data.angle = mcp.NextJoint[2] + mcp.NextJoint[0];
         }
 
-        if (frame.Hands.Count != 0)
-            fingers.HandleHands(leftHand, rightHand);
+        fingers.ReportLeapFrame(leftHand.isActive, rightHand.isActive);
+        fingers.HandleHands(leftHand, rightHand);
     }
 
     public void OnDeviceFailure(object sender, DeviceFailureEventArgs args)
