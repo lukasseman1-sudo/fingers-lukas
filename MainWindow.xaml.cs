@@ -39,8 +39,8 @@ namespace FingersApp
             hotkeySource.AddHook(HandHotkeyHook);
             for (int id = 1; id <= 3; id++)
                 RegisterHotKey(hotkeySource.Handle, 5300 + id, 0x4003, (uint)(0x30 + id));
-            RegisterHotKey(hotkeySource.Handle, 5310, 0x4006, 0xBE);
-            RegisterHotKey(hotkeySource.Handle, 5311, 0x4006, 0xBB);
+            RegisterHotKey(hotkeySource.Handle, 5310, 0x4006, 0x7B); // Ctrl+Shift+F12
+            RegisterHotKey(hotkeySource.Handle, 5311, 0x4006, 0x7A); // Ctrl+Shift+F11
         }
         private IntPtr HandHotkeyHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
