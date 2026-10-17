@@ -253,11 +253,19 @@
             <TextBlock Text="Progresivne zrychlenie pri vacsom pohybe" Foreground="White" Margin="0,8,0,0"/>
             <Slider x:Name="MsfsAccelerationSlider" Minimum="0" Maximum="1" Value="0.75" TickFrequency="0.05" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
             <TextBlock Text="Vertikalna kompenzacia hlavy (kalibrovana)" Foreground="White" Margin="0,8,0,0"/>
-            <Slider x:Name="MsfsVerticalHeadTrimSlider" Minimum="-12" Maximum="12" Value="0" TickFrequency="0.005" SmallChange="0.005" LargeChange="0.05" IsSnapToTickEnabled="False" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
+            <Slider x:Name="MsfsVerticalHeadTrimSlider" Minimum="-12" Maximum="12" Value="0" TickFrequency="0.0001" SmallChange="0.0001" LargeChange="0.001" AutoToolTipPrecision="4" IsSnapToTickEnabled="False" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,3">
+                <Button Content="− 0,0001" Tag="V-" Click="MsfsNudgeTrim" Margin="0,0,10,0" Padding="10,2"/>
+                <Button Content="+ 0,0001" Tag="V+" Click="MsfsNudgeTrim" Padding="10,2"/>
+            </StackPanel>
             <Button x:Name="MsfsPitchCalibrateButton" Content="Spustit kalibraciu vertikalnej kompenzacie" Click="MsfsPitchCalibrateClicked" Margin="0,8,0,0"/>
             <TextBlock x:Name="MsfsPitchCalibrateHelp" Text="Drz zapastie nehybne, hyb len hlavou hore/dole. Potom ukonci kalibraciu." Foreground="#FFAAAAAA" FontSize="10" TextWrapping="Wrap" Margin="0,3,0,0"/>
             <TextBlock Text="Horizontalna kompenzacia hlavy (kalibrovana)" Foreground="White" Margin="0,8,0,0"/>
-            <Slider x:Name="MsfsHorizontalHeadTrimSlider" Minimum="-12" Maximum="12" Value="0" TickFrequency="0.005" SmallChange="0.005" LargeChange="0.05" IsSnapToTickEnabled="False" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsHorizontalTrimChanged"/>
+            <Slider x:Name="MsfsHorizontalHeadTrimSlider" Minimum="-12" Maximum="12" Value="0" TickFrequency="0.0001" SmallChange="0.0001" LargeChange="0.001" AutoToolTipPrecision="4" IsSnapToTickEnabled="False" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsHorizontalTrimChanged"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,3">
+                <Button Content="− 0,0001" Tag="H-" Click="MsfsNudgeTrim" Margin="0,0,10,0" Padding="10,2"/>
+                <Button Content="+ 0,0001" Tag="H+" Click="MsfsNudgeTrim" Padding="10,2"/>
+            </StackPanel>
             <Button x:Name="MsfsYawCalibrateButton" Content="Spustit kalibraciu horizontalnej kompenzacie" Click="MsfsYawCalibrateClicked" Margin="0,8,0,0"/>
             <TextBlock x:Name="MsfsYawCalibrateHelp" Text="Drz zapastie nehybne, otacaj iba hlavou vlavo/vpravo." Foreground="#FFAAAAAA" FontSize="10" TextWrapping="Wrap"/>
             <CheckBox x:Name="MsfsCenterOnTrackCheckBox" Content="Pri zacati sledovania dat kurzor do stredu" Foreground="White" Margin="0,8,0,0" Checked="MsfsCenterChanged" Unchecked="MsfsCenterChanged"/>
