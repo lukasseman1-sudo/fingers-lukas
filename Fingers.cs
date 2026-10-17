@@ -254,6 +254,14 @@ public class Fingers
         return (leftButtonDown || rightButtonDown);
     }
 
+    volatile bool msfsInvertDepth = true;
+    volatile float msfsDepthToVertical = 0.35f;
+    public void SetMsfsDepthSettings(bool invert, float influence)
+    {
+        msfsInvertDepth = invert;
+        msfsDepthToVertical = Math.Max(0f, Math.Min(2f, influence));
+        DisengageHand();
+    }
     volatile bool msfs3DMode = true;
     volatile float msfsSensorPitch = 0f;
     volatile float msfsSensorY = 0f;
@@ -365,7 +373,11 @@ public class Fingers
                         // sensitivity) rather than raw head-relative atan2 deltas.
                         float scale = msfs3DMode ? 114.59f
                             : 57.2958f / Math.Max(0.20f, Math.Abs(activeHand.pos.Z) * 0.001f);
-                        delta = new Vector2(diff.X, -diff.Y) * scale;
+                        // Depth is a third hand axis, but MSFS receives a 2D mouse:
+                        // optionally project hand movement toward/away onto cursor Y.
+                        float depthDirection = msfsInvertDepth ? -1f : 1f;
+                        float vertical = -diff.Y + (msfs3DMode ? depthDirection * msfsDepthToVertical * diff.Z : 0f);
+                        delta = new Vector2(diff.X, vertical) * scale;
                         sampleValid = true;
                     }
                     // Trim residual pitch-induced Y motion without changing X.
