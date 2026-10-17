@@ -248,8 +248,10 @@
             <Slider x:Name="MsfsCompensationSlider" Minimum="0" Maximum="0.5" Value="0" TickFrequency="0.02" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
             <TextBlock Text="Progresivne zrychlenie pri vacsom pohybe" Foreground="White" Margin="0,8,0,0"/>
             <Slider x:Name="MsfsAccelerationSlider" Minimum="0" Maximum="1" Value="0.75" TickFrequency="0.05" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
-            <TextBlock Text="Kompenzacia sklonu hlavy - vertikalna (-2 az +2)" Foreground="White" Margin="0,8,0,0"/>
-            <Slider x:Name="MsfsVerticalHeadTrimSlider" Minimum="-2" Maximum="2" Value="0" TickFrequency="0.05" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
+            <TextBlock Text="Vertikalna kompenzacia hlavy (kalibrovana)" Foreground="White" Margin="0,8,0,0"/>
+            <Slider x:Name="MsfsVerticalHeadTrimSlider" Minimum="-12" Maximum="12" Value="0" TickFrequency="0.05" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
+            <Button x:Name="MsfsPitchCalibrateButton" Content="Spustit kalibraciu vertikalnej kompenzacie" Click="MsfsPitchCalibrateClicked" Margin="0,8,0,0"/>
+            <TextBlock x:Name="MsfsPitchCalibrateHelp" Text="Drz zapastie nehybne, hyb len hlavou hore/dole. Potom ukonci kalibraciu." Foreground="#FFAAAAAA" FontSize="10" TextWrapping="Wrap" Margin="0,3,0,0"/>
             <TextBlock x:Name="MsfsInputStatus" Text="Cakam na vstup ruky" Foreground="#FF82D9F0" TextWrapping="Wrap" Margin="0,9,0,0"/>
             <TextBlock x:Name="MsfsPoseStatus" Text="OpenXR: cakam na data headsetu" Foreground="#FFFFC670" FontWeight="Bold" Margin="0,8,0,0"/>
             <TextBlock Text="3D rezim vyzaduje aktivne OpenXR udaje. Pri strate dat pouzije zalozny rezim." Foreground="#FFAAAAAA" FontSize="10" TextWrapping="Wrap" Margin="0,7,0,0"/>
