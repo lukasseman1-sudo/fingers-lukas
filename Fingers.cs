@@ -352,7 +352,8 @@ public class Fingers
         {
             // Relative angle is tracked before any Windows cursor movement is generated.
             // Never read back the Windows cursor position, preventing recirculation.
-            Vector2 angle = GetRelativeAngle(ref activeHand.pos);
+            Vector2 angle = msfs3DMode ? GetRelativeAngle(ref activeHand.pos)
+                : new Vector2(activeHand.pos.X, -activeHand.pos.Y) * 0.11459f;
             Vector2 delta = Vector2.Zero;
             bool sampleValid = false;
             TrackedHeadPose head = new TrackedHeadPose();
@@ -368,16 +369,28 @@ public class Fingers
                     if (previousWorldHandValid)
                     {
                         Vector3 diff = worldHand - previousWorldHand;
-                        // Both modes must compensate headset motion in world space.
-                        // Classic uses depth-normalized world displacement (angle-like
-                        // sensitivity) rather than raw head-relative atan2 deltas.
-                        float scale = msfs3DMode ? 114.59f
-                            : 57.2958f / Math.Max(0.20f, Math.Abs(activeHand.pos.Z) * 0.001f);
-                        // Depth is a third hand axis, but MSFS receives a 2D mouse:
-                        // optionally project hand movement toward/away onto cursor Y.
-                        float depthDirection = msfsInvertDepth ? -1f : 1f;
-                        float vertical = -diff.Y + (msfs3DMode ? depthDirection * msfsDepthToVertical * diff.Z : 0f);
-                        delta = new Vector2(diff.X, vertical) * scale;
+                        if (msfs3DMode)
+                        {
+                            // Existing 3D behavior, including deliberate Z-to-Y projection.
+                            float depthDirection = msfsInvertDepth ? -1f : 1f;
+                            float vertical = -diff.Y + depthDirection * msfsDepthToVertical * diff.Z;
+                            delta = new Vector2(diff.X, vertical) * 114.59f;
+                        }
+                        else
+                        {
+                            // True planar mouse mode: only lateral/vertical hand movement
+                            // drives X/Y. Project world-space displacement onto the
+                            // headset-mounted sensor's right/up axes to reject Z movement,
+                            // while preserving world-space head-motion compensation.
+                            Quaternion sensorOrientation = Quaternion.Normalize(
+                                Quaternion.Multiply(head.Orientation,
+                                    Quaternion.CreateFromAxisAngle(Vector3.UnitX,
+                                        msfsSensorPitch * (float)Math.PI / 180f)));
+                            Vector3 right = Vector3.Transform(Vector3.UnitX, sensorOrientation);
+                            Vector3 up = Vector3.Transform(Vector3.UnitY, sensorOrientation);
+                            delta = new Vector2(Vector3.Dot(diff, right),
+                                                -Vector3.Dot(diff, up)) * 114.59f;
+                        }
                         sampleValid = true;
                     }
                     // Trim residual pitch-induced Y motion without changing X.
