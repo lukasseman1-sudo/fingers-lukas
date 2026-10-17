@@ -64,6 +64,7 @@ public class Fingers
     Vector2 previousMsfsAngle;
     bool previousMsfsAngleValid = false;
     Vector2 msfsRemainder;
+    Vector2 msfsDeadzoneAccumulator;
     const float MsfsPixelsPerDegree = 28f;
     volatile float msfsHorizontal = 2f;
     volatile float msfsVertical = 4f;
@@ -350,10 +351,27 @@ public class Fingers
                 // A tracker reacquisition or hand switch must not cause a huge cursor jump.
                 if (Math.Abs(delta.X) < 12f && Math.Abs(delta.Y) < 12f)
                 {
-                    // Deadzone attenuates micro-movements; it cannot distinguish head from hand.
-                    float deadzone = msfsDeadzone;
-                    if (Math.Abs(delta.X) < deadzone) delta.X = 0;
-                    if (Math.Abs(delta.Y) < deadzone) delta.Y = 0;
+                    // A 2D radial dead zone with accumulated movement.
+                    // Do not discard each small frame independently: deliberate slow
+                    // movements must eventually cross the dead-zone boundary.
+                    msfsDeadzoneAccumulator += delta;
+                    float deadzone = Math.Max(0f, msfsDeadzone);
+                    float traveled = msfsDeadzoneAccumulator.Length();
+                    if (traveled <= deadzone)
+                    {
+                        delta = Vector2.Zero;
+                    }
+                    else if (deadzone > 0f)
+                    {
+                        Vector2 direction = msfsDeadzoneAccumulator / traveled;
+                        delta = direction * (traveled - deadzone);
+                        msfsDeadzoneAccumulator = direction * deadzone;
+                    }
+                    else
+                    {
+                        delta = msfsDeadzoneAccumulator;
+                        msfsDeadzoneAccumulator = Vector2.Zero;
+                    }
                     // Nonlinear acceleration based on angular speed, not distance from center.
                     // Small, slow corrections remain precise; deliberate fast motions travel farther.
                     long now = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -382,6 +400,7 @@ public class Fingers
     {
         previousMsfsAngleValid = false;
         msfsRemainder = Vector2.Zero;
+        msfsDeadzoneAccumulator = Vector2.Zero;
         msfsLastTick = 0;
         previousWorldHandValid = false;
         previousHeadPitchValid = false;
