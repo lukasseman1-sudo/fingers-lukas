@@ -75,6 +75,24 @@ public class Fingers
     public bool HasFreshHeadPose { get { TrackedHeadPose h; return headPoseReceiver != null && headPoseReceiver.TryGetPose(out h); } }
     Vector3 previousWorldHand;
     bool previousWorldHandValid = false;
+    float previousHeadYawDegrees;
+    bool previousHeadYawValid;
+    volatile float msfsHorizontalHeadTrim = 0f;
+    volatile bool calibratingYaw;
+    double yawXX, yawXY;
+    int yawSamples;
+    public void SetMsfsHorizontalTrim(float value) { msfsHorizontalHeadTrim = value; }
+    public void StartYawCalibration() { yawXX = yawXY = 0; yawSamples = 0; calibratingYaw = true; DisengageHand(); }
+    public bool FinishYawCalibration(out float correction, out int count)
+    {
+        calibratingYaw = false; count = yawSamples; correction = msfsHorizontalHeadTrim;
+        if (count < 12 || yawXX < 2.0) return false;
+        double fitted = -yawXY / yawXX;
+        if (double.IsNaN(fitted) || double.IsInfinity(fitted) || Math.Abs(fitted) > 12) return false;
+        correction = (float)fitted; msfsHorizontalHeadTrim = correction; DisengageHand(); return true;
+    }
+    volatile bool centerOnTrackingStart;
+    public void SetCenterOnTrackingStart(bool enabled) { centerOnTrackingStart = enabled; }
     float previousHeadPitchDegrees;
     volatile bool calibratingPitch;
     double pitchXX, pitchXY;
@@ -316,8 +334,11 @@ public class Fingers
             return;
         }
 
+        bool trackingJustStarted = !currentHand.isActive && activeHand.isActive;
         currentHand = activeHand;
         if (!activeHand.isActive) return;
+        if (msfsMode && trackingJustStarted && centerOnTrackingStart)
+            System.Windows.Forms.Cursor.Position = new System.Drawing.Point((int)screenCenter.X, (int)screenCenter.Y);
 
         if (msfsMode)
         {
@@ -365,6 +386,21 @@ public class Fingers
                             if (!calibratingPitch) delta.Y += pitchDelta * msfsVerticalHeadTrim;
                         }
                     }
+                    float yaw = (float)(Math.Atan2(forward.X, -forward.Z) * 180.0 / Math.PI);
+                    if (previousHeadYawValid && sampleValid)
+                    {
+                        float yawDelta = yaw - previousHeadYawDegrees;
+                        if (yawDelta > 180f) yawDelta -= 360f;
+                        if (yawDelta < -180f) yawDelta += 360f;
+                        if (Math.Abs(yawDelta) < 15f)
+                        {
+                            if (calibratingYaw && Math.Abs(yawDelta) > 0.04f)
+                            { yawXX += yawDelta * yawDelta; yawXY += yawDelta * delta.X; yawSamples++; }
+                            if (!calibratingYaw) delta.X += yawDelta * msfsHorizontalHeadTrim;
+                        }
+                    }
+                    previousHeadYawDegrees = yaw;
+                    previousHeadYawValid = true;
                     previousHeadPitchDegrees = pitch;
                     previousHeadPitchValid = true;
                     LogVertical(pitch, activeHand.pos.Y, worldHand.Y, delta.Y, true);
@@ -380,6 +416,7 @@ public class Fingers
                 LogVertical(0f, activeHand.pos.Y, 0f, delta.Y, false);
                 previousWorldHandValid = false;
                 previousHeadPitchValid = false;
+                previousHeadYawValid = false;
                 if (previousMsfsAngleValid) { delta = angle - previousMsfsAngle; sampleValid = true; }
                 previousMsfsAngle = angle;
                 previousMsfsAngleValid = true;
@@ -443,6 +480,7 @@ public class Fingers
         msfsLastTick = 0;
         previousWorldHandValid = false;
         previousHeadPitchValid = false;
+        previousHeadYawValid = false;
         currentHand.isActive = false;
     }
 
