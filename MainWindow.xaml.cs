@@ -319,6 +319,17 @@ namespace FingersApp
             catch (Exception ex) { Debug.WriteLine("MSFS tuning save: " + ex.Message); }
         }
 
+        private void MsfsNudgeTrim(object sender, RoutedEventArgs e)
+        {
+            var button = sender as System.Windows.Controls.Button;
+            string tag = button == null ? "" : (button.Tag as string ?? "");
+            var slider = tag.StartsWith("H") ? MsfsHorizontalHeadTrimSlider : MsfsVerticalHeadTrimSlider;
+            if (slider == null || tag.Length < 2) return;
+            double step = tag.EndsWith("+") ? 0.0001 : -0.0001;
+            slider.Value = Math.Max(slider.Minimum, Math.Min(slider.Maximum,
+                Math.Round(slider.Value + step, 4)));
+        }
+
         private void MsfsHorizontalTrimChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (MsfsHorizontalHeadTrimSlider == null) return;
