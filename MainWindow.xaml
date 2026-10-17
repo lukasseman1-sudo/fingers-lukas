@@ -244,7 +244,7 @@
             <Slider x:Name="MsfsHorizontalSlider" Minimum="0.5" Maximum="8" Value="2" TickFrequency="0.25" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
             <TextBlock Text="Vertikalna citlivost" Foreground="White" Margin="0,8,0,0"/>
             <Slider x:Name="MsfsVerticalSlider" Minimum="0.5" Maximum="12" Value="4" TickFrequency="0.25" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
-            <TextBlock Text="Filter mikropohybov (nie kompenzacia hlavy)" Foreground="White" Margin="0,8,0,0"/>
+            <TextBlock Text="Mrtva zona ruky - jemne chvenie (0-0.5 stupna)" Foreground="White" Margin="0,8,0,0"/>
             <Slider x:Name="MsfsCompensationSlider" Minimum="0" Maximum="0.5" Value="0" TickFrequency="0.02" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
             <TextBlock Text="Progresivne zrychlenie pri vacsom pohybe" Foreground="White" Margin="0,8,0,0"/>
             <Slider x:Name="MsfsAccelerationSlider" Minimum="0" Maximum="1" Value="0.75" TickFrequency="0.05" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsSlidersChanged"/>
