@@ -101,7 +101,7 @@ class LeapHandler
         {
             ref HandData data = ref ((hand.IsLeft) ? ref leftHand : ref rightHand);
 
-            // Stable base of the index finger (metacarpal), including Mouse Only mode.
+            // Wrist-side (proximal) joint of index metacarpal; less affected by finger articulation.
             // Avoid using the thumb tip, which amplifies small finger motions.
             Bone mcp = hand.Fingers.Find(x => x.Type == Finger.FingerType.TYPE_INDEX)
                                    .Bone(Bone.BoneType.TYPE_METACARPAL);
@@ -109,7 +109,7 @@ class LeapHandler
             // Convert to HandData coordinate system
             // Can also consider using StabilizedPalmPosition
             data.pos = Util.RotatePosition(
-              new Vector3(-mcp.NextJoint[0], -mcp.NextJoint[2], mcp.NextJoint[1]), mountAngleOffsetRadians);
+              new Vector3(-mcp.PrevJoint[0], -mcp.PrevJoint[2], mcp.PrevJoint[1]), mountAngleOffsetRadians);
 
             data.pos.X = data.pos.X + mountPositionOffset.X; // horizontal
             data.pos.Y = data.pos.Y + mountPositionOffset.Y; // upness
