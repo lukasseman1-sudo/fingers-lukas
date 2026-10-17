@@ -64,6 +64,7 @@ namespace FingersApp
         }
 
         private bool pitchCalibrationInProgress = false;
+        private bool yawCalibrationInProgress = false;
         private bool closing = false;
         private DispatcherTimer poseStatusTimer;
         //Thread FingersThread;
@@ -83,6 +84,8 @@ namespace FingersApp
             MsfsCompensationSlider.Value = ReadTuning("Compensation", 0);
             MsfsAccelerationSlider.Value = ReadTuning("Acceleration", 0.75);
             MsfsVerticalHeadTrimSlider.Value = ReadTuning("VerticalHeadTrim", 0);
+            MsfsHorizontalHeadTrimSlider.Value = ReadTuning("HorizontalHeadTrim", 0);
+            MsfsCenterOnTrackCheckBox.IsChecked = ReadTuning("CenterOnTrack", 0) != 0;
             Msfs3DCheckBox.IsChecked = ReadTuning("3DMode", 1) != 0;
             MsfsSensorPitchSlider.Value = ReadTuning("SensorPitch", 0);
             MsfsSensorYSlider.Value = ReadTuning("SensorY", 0);
@@ -142,7 +145,7 @@ namespace FingersApp
 
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
-            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex); fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value); }); });
+            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex); fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value); fingers.SetMsfsHorizontalTrim((float)MsfsHorizontalHeadTrimSlider.Value); fingers.SetCenterOnTrackingStart(MsfsCenterOnTrackCheckBox.IsChecked == true); }); });
 
             /*
             FingersThread = new Thread(() =>
@@ -286,6 +289,8 @@ namespace FingersApp
                     "Compensation=" + MsfsCompensationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "Acceleration=" + MsfsAccelerationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "VerticalHeadTrim=" + MsfsVerticalHeadTrimSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "HorizontalHeadTrim=" + MsfsHorizontalHeadTrimSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "CenterOnTrack=" + (MsfsCenterOnTrackCheckBox.IsChecked == true ? "1" : "0"),
                     "HandMode=" + MsfsHandModeCombo.SelectedIndex.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "3DMode=" + (Msfs3DCheckBox.IsChecked == true ? "1" : "0"),
                     "SensorPitch=" + MsfsSensorPitchSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -293,6 +298,49 @@ namespace FingersApp
                 });
             }
             catch (Exception ex) { Debug.WriteLine("MSFS tuning save: " + ex.Message); }
+        }
+
+        private void MsfsHorizontalTrimChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (MsfsHorizontalHeadTrimSlider == null) return;
+            if (fingers != null) fingers.SetMsfsHorizontalTrim((float)MsfsHorizontalHeadTrimSlider.Value);
+            if (MsfsVerticalHeadTrimSlider != null && MsfsCenterOnTrackCheckBox != null) SaveTuning();
+        }
+        private void MsfsCenterChanged(object sender, RoutedEventArgs e)
+        {
+            if (MsfsCenterOnTrackCheckBox == null) return;
+            if (fingers != null) fingers.SetCenterOnTrackingStart(MsfsCenterOnTrackCheckBox.IsChecked == true);
+            if (MsfsVerticalHeadTrimSlider != null && MsfsHorizontalHeadTrimSlider != null) SaveTuning();
+        }
+        private void MsfsYawCalibrateClicked(object sender, RoutedEventArgs e)
+        {
+            if (fingers == null || !fingers.HasFreshHeadPose)
+            {
+                MessageBox.Show("Spusti MSFS vo VR a over OpenXR: headset data OK.", "Fingers");
+                return;
+            }
+            if (!yawCalibrationInProgress)
+            {
+                fingers.StartYawCalibration();
+                yawCalibrationInProgress = true;
+                MsfsYawCalibrateButton.Content = "Ukoncit a ulozit horizontalnu kalibraciu";
+                MsfsYawCalibrateHelp.Text = "Drz zapastie nehybne a otacaj hlavou vlavo/vpravo 5-10x.";
+            }
+            else
+            {
+                float correction;
+                int samples;
+                bool ok = fingers.FinishYawCalibration(out correction, out samples);
+                yawCalibrationInProgress = false;
+                MsfsYawCalibrateButton.Content = "Spustit kalibraciu horizontalnej kompenzacie";
+                if (ok)
+                {
+                    MsfsHorizontalHeadTrimSlider.Value = correction;
+                    MsfsYawCalibrateHelp.Text = "Ulozene, vzorky: " + samples;
+                    SaveTuning();
+                }
+                else MsfsYawCalibrateHelp.Text = "Kalibracia nemala dostatok vzoriek (" + samples + ").";
+            }
         }
 
         private void MsfsPitchCalibrateClicked(object sender, RoutedEventArgs e)
