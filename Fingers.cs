@@ -405,11 +405,10 @@ public class Fingers
             }
             else
             {
-                // Fallback when the OpenXR bridge has no headset data.
-                // This is sensor/head-relative and cannot compensate head movement.
-                Vector2 sensorAngle = msfs3DMode ? GetRelativeAngle(ref activeHand.pos)
-                    : new Vector2(activeHand.pos.X, -activeHand.pos.Y) * 0.11459f;
-                MoveAbsoluteBoneCursor(sensorAngle, false);
+                // STRICT world-locked mode: never substitute head-relative
+                // coordinates when headset pose is missing or stale.
+                // Freeze cursor until a fresh OpenXR world pose is available.
+                return;
             }
             return;
         }
