@@ -61,6 +61,39 @@ public class Fingers
     // MSFS mode sends relative movement straight from hand tracking (no cursor feedback loop).
     readonly bool mouseOnlyMode = Environment.GetEnvironmentVariable("FINGERS_MOUSE_ONLY") == "1";
     readonly bool msfsMode = Environment.GetEnvironmentVariable("FINGERS_MSFS") == "1" || Environment.GetEnvironmentVariable("FINGERS_MOUSE_ONLY") == "1";
+    // Optional absolute bone mode. Uses the SAME HandData.pos produced by LeapHandler.
+    // The reference is established once and survives temporary tracking loss.
+    readonly bool msfsAbsoluteBoneMode = Environment.GetEnvironmentVariable("FINGERS_MSFS_ABSOLUTE") == "1";
+    bool absoluteReferenceValid;
+    bool absoluteReferenceUsesWorld;
+    Vector2 absoluteReferenceBone;
+    Vector2 absoluteReferenceCursor;
+    const float AbsoluteWorldToDegrees = 114.59f;
+    void MoveAbsoluteBoneCursor(Vector2 boneCoordinates, bool usesWorld)
+    {
+        if (!float.IsNaN(boneCoordinates.X) && !float.IsNaN(boneCoordinates.Y) &&
+            !float.IsInfinity(boneCoordinates.X) && !float.IsInfinity(boneCoordinates.Y))
+        {
+            if (!absoluteReferenceValid || absoluteReferenceUsesWorld != usesWorld)
+            {
+                // Re-anchor only on first acquisition or a coordinate-frame change,
+                // NEVER because tracking was temporarily lost.
+                var cursor = System.Windows.Forms.Cursor.Position;
+                absoluteReferenceCursor = new Vector2(cursor.X, cursor.Y);
+                absoluteReferenceBone = boneCoordinates;
+                absoluteReferenceUsesWorld = usesWorld;
+                absoluteReferenceValid = true;
+            }
+            Vector2 displacement = boneCoordinates - absoluteReferenceBone;
+            Vector2 target = absoluteReferenceCursor +
+                new Vector2(displacement.X * msfsHorizontal, displacement.Y * msfsVertical) *
+                MsfsPixelsPerDegree;
+            var bounds = System.Windows.Forms.SystemInformation.VirtualScreen;
+            int x = Math.Max(bounds.Left, Math.Min(bounds.Right - 1, (int)Math.Round(target.X)));
+            int y = Math.Max(bounds.Top, Math.Min(bounds.Bottom - 1, (int)Math.Round(target.Y)));
+            if (cursorEnabled) { Winput.SetCursorPosition(x, y); System.Threading.Interlocked.Increment(ref MouseMovesSent); }
+        }
+    }
     Vector2 previousMsfsAngle;
     bool previousMsfsAngleValid = false;
     Vector2 msfsRemainder;
@@ -336,17 +369,50 @@ public class Fingers
     {
         HandData activeHand = GetActiveHand(left, right);
 
-        if (!activeHand.isActive && currentHand.isActive)
+        if (!activeHand.isActive)
         {
-            DisengageHand();
+            // Freeze at the last cursor position. Keep the absolute reference
+            // intact so reacquisition maps to the actual bone position.
+            if (currentHand.isActive) DisengageHand();
             return;
         }
 
         bool trackingJustStarted = !currentHand.isActive && activeHand.isActive;
         currentHand = activeHand;
         if (!activeHand.isActive) return;
-        if (msfsMode && trackingJustStarted && centerOnTrackingStart)
+        if (msfsMode && !msfsAbsoluteBoneMode && trackingJustStarted && centerOnTrackingStart)
             System.Windows.Forms.Cursor.Position = new System.Drawing.Point((int)screenCenter.X, (int)screenCenter.Y);
+
+        if (msfsMode && msfsAbsoluteBoneMode)
+        {
+            // Prefer world-space position when a fresh OpenXR headset pose is available:
+            // this compensates for head movement without integrating mouse deltas.
+            TrackedHeadPose absoluteHead;
+            Vector3 absoluteWorld;
+            if (headPoseReceiver != null && headPoseReceiver.TryGetPose(out absoluteHead) &&
+                HeadIndependentHand.TryToWorld(
+                    new Vector3(activeHand.pos.X, activeHand.pos.Y, -activeHand.pos.Z),
+                    absoluteHead,
+                    new Vector3(0f, msfsSensorY * 0.001f, 0f),
+                    Quaternion.CreateFromAxisAngle(Vector3.UnitX,
+                        msfsSensorPitch * (float)Math.PI / 180f),
+                    out absoluteWorld))
+            {
+                float depthDirection = msfsInvertDepth ? -1f : 1f;
+                float vertical = -absoluteWorld.Y +
+                    (msfs3DMode ? depthDirection * msfsDepthToVertical * absoluteWorld.Z : 0f);
+                MoveAbsoluteBoneCursor(new Vector2(absoluteWorld.X, vertical) * AbsoluteWorldToDegrees, true);
+            }
+            else
+            {
+                // Fallback when the OpenXR bridge has no headset data.
+                // This is sensor/head-relative and cannot compensate head movement.
+                Vector2 sensorAngle = msfs3DMode ? GetRelativeAngle(ref activeHand.pos)
+                    : new Vector2(activeHand.pos.X, -activeHand.pos.Y) * 0.11459f;
+                MoveAbsoluteBoneCursor(sensorAngle, false);
+            }
+            return;
+        }
 
         if (msfsMode)
         {
