@@ -203,14 +203,24 @@ public class Fingers
     {
         HandData activeHand = GetActiveHand(left, right);
 
-        if (!activeHand.isActive && currentHand.isActive)
+        // Do not send a fabricated (0,0,0) position when no bone is tracked.
+        // Keep the cursor at its last valid location until a new sample arrives.
+        if (!activeHand.isActive)
         {
-            DisengageHand();
+            if (currentHand.isActive)
+                DisengageHand();
+            currentHand = activeHand;
             return;
         }
 
+        // Absolute projection from the CURRENT tracked bone position. No delta
+        // accumulation, no automatic re-centering after a tracking interruption.
+        // This preserves the existing LeapHandler bone selection.
         currentHand = activeHand;
         Vector2 screenPos = GetScreenPosition(activeHand.pos);
+        if (float.IsNaN(screenPos.X) || float.IsNaN(screenPos.Y) ||
+            float.IsInfinity(screenPos.X) || float.IsInfinity(screenPos.Y))
+            return;
 
         SetCursorPos(screenPos);
     }
