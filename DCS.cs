@@ -31,7 +31,7 @@ public class DCS
 
         while (true)
         {
-            hWnd = GetDCSWindow();
+            hWnd = GetSimulatorWindow();
             if (hWnd != IntPtr.Zero)
             {
                 GetWindowRect(hWnd, out rect);
@@ -51,7 +51,7 @@ public class DCS
         }
     }
 
-    public static IntPtr GetDCSWindow()
+    public static IntPtr GetSimulatorWindow()
     {
         IntPtr hWnd = IntPtr.Zero;
         
@@ -59,9 +59,11 @@ public class DCS
         {
           if (pList.MainWindowTitle.Equals("")) continue;
 
-          if (pList.ProcessName.Equals("DCS") &&
-              pList.MainWindowTitle.Contains("Digital Combat Simulator") &&
-              !pList.MainWindowTitle.Contains("_server"))
+          if ((pList.ProcessName.Equals("DCS", StringComparison.OrdinalIgnoreCase) &&
+               pList.MainWindowTitle.Contains("Digital Combat Simulator") &&
+               !pList.MainWindowTitle.Contains("_server")) ||
+              (pList.ProcessName.Equals("FlightSimulator2024", StringComparison.OrdinalIgnoreCase) ||
+               pList.ProcessName.Equals("FlightSimulator", StringComparison.OrdinalIgnoreCase)))
           {
             return pList.MainWindowHandle;
           }
