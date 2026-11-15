@@ -126,6 +126,8 @@ namespace FingersApp
         private bool pitchCalibrationInProgress = false;
         private bool yawCalibrationInProgress = false;
         private bool closing = false;
+        // Avoid overwriting the user's previous tuning while sliders initialize.
+        private bool loadingTuning = true;
         private DispatcherTimer poseStatusTimer;
         //Thread FingersThread;
 
@@ -139,6 +141,9 @@ namespace FingersApp
             SourceInitialized += InstallHandHotkeys;
             Closed += RemoveHandHotkeys;
             MsfsTuningPanel.Visibility = Visibility.Visible; // Show tuning controls even when launched directly; MSFS mode itself still requires START_MSFS.cmd.
+            // Logarithmic 0.1%-100% master scale, default 5% (20x slower).
+            MsfsCockpitSensitivitySlider.Value = ReadTuning("CockpitSensitivitySlider", 56.632333);
+            UpdateCockpitSensitivityText();
             MsfsHorizontalSlider.Value = ReadTuning("Horizontal", 2);
             MsfsVerticalSlider.Value = ReadTuning("Vertical", 4);
             MsfsCompensationSlider.Value = ReadTuning("Compensation", 0);
@@ -152,6 +157,7 @@ namespace FingersApp
             MsfsInvertDepthCheckBox.IsChecked = ReadTuning("InvertDepth", 1) != 0;
             MsfsDepthInfluenceSlider.Value = ReadTuning("DepthInfluence", 0.35);
             MsfsHandModeCombo.SelectedIndex = (int)Math.Max(0, Math.Min(2, ReadTuning("HandMode", 0)));
+            loadingTuning = false;
             poseStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             poseStatusTimer.Tick += (s, e) =>
             {
@@ -207,7 +213,7 @@ namespace FingersApp
 
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
-            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex); fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value); fingers.SetMsfsHorizontalTrim((float)MsfsHorizontalHeadTrimSlider.Value); fingers.SetCenterOnTrackingStart(MsfsCenterOnTrackCheckBox.IsChecked == true); fingers.SetMsfsDepthSettings(MsfsInvertDepthCheckBox.IsChecked == true, (float)MsfsDepthInfluenceSlider.Value); }); });
+            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex); fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value); fingers.SetMsfsHorizontalTrim((float)MsfsHorizontalHeadTrimSlider.Value); fingers.SetCenterOnTrackingStart(MsfsCenterOnTrackCheckBox.IsChecked == true); fingers.SetMsfsDepthSettings(MsfsInvertDepthCheckBox.IsChecked == true, (float)MsfsDepthInfluenceSlider.Value); fingers.SetMsfsCockpitSensitivity(CockpitMultiplier(MsfsCockpitSensitivitySlider.Value)); }); });
 
             /*
             FingersThread = new Thread(() =>
@@ -342,10 +348,12 @@ namespace FingersApp
 
         private void SaveTuning()
         {
+            if (loadingTuning) return;
             try
             {
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(TuningFile));
                 System.IO.File.WriteAllLines(TuningFile, new[] {
+                    "CockpitSensitivitySlider=" + MsfsCockpitSensitivitySlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "Horizontal=" + MsfsHorizontalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "Vertical=" + MsfsVerticalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "Compensation=" + MsfsCompensationSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -362,6 +370,45 @@ namespace FingersApp
                 });
             }
             catch (Exception ex) { Debug.WriteLine("MSFS tuning save: " + ex.Message); }
+        }
+
+        // Logarithmic control: slider 0 -> 0.1%, 56.63 -> 5%, 100 -> 100%.
+        // A 10-point slider step changes the gain by ~2x, even at very low levels.
+        private static float CockpitMultiplier(double sliderPosition)
+        {
+            double position = Math.Max(0.0, Math.Min(100.0, sliderPosition));
+            return (float)Math.Pow(10.0, -3.0 + position * 0.03);
+        }
+
+        private void UpdateCockpitSensitivityText()
+        {
+            if (MsfsCockpitSensitivitySlider == null || MsfsCockpitSensitivityDisplay == null) return;
+            double multiplier = CockpitMultiplier(MsfsCockpitSensitivitySlider.Value);
+            double percent = multiplier * 100.0;
+            double slower = 1.0 / multiplier;
+            var culture = System.Globalization.CultureInfo.GetCultureInfo("sk-SK");
+            MsfsCockpitSensitivityDisplay.Text =
+                percent.ToString("0.###", culture) + " % povodnej citlivosti (" +
+                slower.ToString("0.#", culture) + "x pomalsie)";
+        }
+
+        private void MsfsCockpitSensitivityChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (MsfsCockpitSensitivitySlider == null) return;
+            UpdateCockpitSensitivityText();
+            if (fingers != null)
+                fingers.SetMsfsCockpitSensitivity(CockpitMultiplier(MsfsCockpitSensitivitySlider.Value));
+            if (!loadingTuning) SaveTuning();
+        }
+
+        private void MsfsCockpitStep(object sender, RoutedEventArgs e)
+        {
+            if (MsfsCockpitSensitivitySlider == null) return;
+            var button = sender as System.Windows.Controls.Button;
+            bool slower = button != null && (button.Tag as string) == "Slower";
+            double step = slower ? -10.0343 : 10.0343; // log10(2) / 0.03
+            MsfsCockpitSensitivitySlider.Value = Math.Max(0,
+                Math.Min(100, MsfsCockpitSensitivitySlider.Value + step));
         }
 
         private void MsfsNudgeTrim(object sender, RoutedEventArgs e)
