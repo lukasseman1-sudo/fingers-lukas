@@ -75,10 +75,19 @@ public class Fingers
     // Cockpit-only MASTER sensitivity. Default 5% (20x slower);
     // user slider can reach 0.1% (1000x slower) across X, Y and depth.
     volatile float msfsCockpitSensitivity = 0.05f;
+    int cockpitSensitivityUpdateRequested;
+    bool lastCockpitHandWasLeft;
     public void SetMsfsCockpitSensitivity(float multiplier)
     {
         if (float.IsNaN(multiplier) || float.IsInfinity(multiplier)) return;
-        msfsCockpitSensitivity = Math.Max(0.001f, Math.Min(1f, multiplier));
+        float newMultiplier = Math.Max(0.001f, Math.Min(1f, multiplier));
+        if (Math.Abs(msfsCockpitSensitivity - newMultiplier) > 0.000001f)
+        {
+            msfsCockpitSensitivity = newMultiplier;
+            // Tuning gain must not cause cursor jumps while the hand is stationary.
+            // Consume this on the Leap frame thread, not the WPF UI thread.
+            System.Threading.Interlocked.Exchange(ref cockpitSensitivityUpdateRequested, 1);
+        }
     }
     Vector2 lastCockpitTarget;
     Vector2 cockpitRemainder;
@@ -150,6 +159,14 @@ public class Fingers
         // not absolute Windows screen coordinates.
         if (msfsCockpitRelative)
         {
+            if (System.Threading.Interlocked.Exchange(ref cockpitSensitivityUpdateRequested, 0) != 0 ||
+                (lastCockpitTargetValid && lastCockpitHandWasLeft != isLeft))
+            {
+                // Gain or hand changed: avoid an artificial movement pulse.
+                // Do not reset the world anchor or head compensation.
+                lastCockpitTargetValid = false;
+                cockpitRemainder = Vector2.Zero;
+            }
             // A physical mouse can move MSFS's VR ray while Windows cursor
             // repositioning alone may only affect menu/UI layers. Feed
             // relative input derived from SAME absolute head-compensated target.
@@ -169,6 +186,7 @@ public class Fingers
                 }
             }
             lastCockpitTarget = currentTarget;
+            lastCockpitHandWasLeft = isLeft;
             lastCockpitTargetValid = true;
             return;
         }
