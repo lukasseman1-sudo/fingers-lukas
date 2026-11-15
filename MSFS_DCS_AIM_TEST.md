@@ -81,6 +81,32 @@ change the tracked point (index versus wrist), switch the selected
 hand, or restart Fingers. Starting a new instance does not load
 the prior session's physical anchor.
 
+## Slugtrack-style angular tracking zone — new
+
+In the separate `START_MSFS_DCS_AIM_TEST.cmd` mode the settings now offer:
+
+- **Horizontalna zona**: 20°–40° full angle across the view (default 30°).
+- **Vertikalna zona**: 20°–40° full angle (default 30°).
+- **Po obnoveni ruky vratit kurzor priblizne do stredu**: enabled by default.
+
+For example, 30° means the hand joint must be within **15° left/right**
+and **15° above/below** the headset's forward gaze. The current angular
+direction uses the selected bone (DCS index joint or wrist) and the
+live OpenXR head pose.
+
+Outside the zone or when the tracked hand disappears, Fingers PAUSES
+sending mouse motion. When the hand re-enters, the app can attempt
+to undo its own accumulated mouse deltas to move the MSFS VR ray
+**approximately** toward its previous center. The app cannot read
+the native MSFS VR ray or movement from a separate physical mouse:
+this is a best-effort approximation, not a guaranteed center.
+
+**Important:** The persistent DCS aim reference created by TAB
+remains unchanged through hand-tracking loss and zone re-entry.
+For a genuine exact pointer match, MSFS must expose native ray control
+or compatible OpenXR controller input. The new zone and recenter
+settings save in `%APPDATA%\FingersMSFS\tuning.txt`.
+
 ## Important limitations (no claim of pixel-perfect guarantee)
 
 This mode still outputs **synthetic Windows relative mouse deltas**.
