@@ -72,6 +72,14 @@ public class Fingers
     // persistent anchor, but emit deltas via the existing mouse_event path.
     // The regular same-bone Windows cursor mode remains the default.
     readonly bool msfsCockpitRelative = Environment.GetEnvironmentVariable("FINGERS_MSFS_COCKPIT_RELATIVE") == "1";
+    // Cockpit-only MASTER sensitivity. Default 5% (20x slower);
+    // user slider can reach 0.1% (1000x slower) across X, Y and depth.
+    volatile float msfsCockpitSensitivity = 0.05f;
+    public void SetMsfsCockpitSensitivity(float multiplier)
+    {
+        if (float.IsNaN(multiplier) || float.IsInfinity(multiplier)) return;
+        msfsCockpitSensitivity = Math.Max(0.001f, Math.Min(1f, multiplier));
+    }
     Vector2 lastCockpitTarget;
     Vector2 cockpitRemainder;
     bool lastCockpitTargetValid;
@@ -133,11 +141,13 @@ public class Fingers
         Vector2 target = baseScreen +
             new Vector2(distanceMeters.X * msfsHorizontal,
                         distanceMeters.Y * msfsVertical) *
-            (worldMetresToDegrees * MsfsPixelsPerDegree);
+            (worldMetresToDegrees * MsfsPixelsPerDegree) *
+            (msfsCockpitRelative ? msfsCockpitSensitivity : 1f);
 
-        var bounds = System.Windows.Forms.SystemInformation.VirtualScreen;
-        int x = Math.Max(bounds.Left, Math.Min(bounds.Right - 1, (int)Math.Round(target.X)));
-        int y = Math.Max(bounds.Top, Math.Min(bounds.Bottom - 1, (int)Math.Round(target.Y)));
+        // Keep sub-pixel precision until AFTER relative input is calculated.
+        // With 0.1-5% sensitivity rounding target early loses most hand motion.
+        // Avoid desktop bounds clipping in cockpit mode: MSFS consumes deltas,
+        // not absolute Windows screen coordinates.
         if (msfsCockpitRelative)
         {
             // A physical mouse can move MSFS's VR ray while Windows cursor
@@ -145,7 +155,7 @@ public class Fingers
             // relative input derived from SAME absolute head-compensated target.
             // Keep the previous target across Leap tracking loss so reacquisition
             // produces the correct displacement rather than resetting origin.
-            Vector2 currentTarget = new Vector2(x, y);
+            Vector2 currentTarget = target;
             if (lastCockpitTargetValid)
             {
                 Vector2 delta = currentTarget - lastCockpitTarget + cockpitRemainder;
@@ -163,6 +173,9 @@ public class Fingers
             return;
         }
 
+        var bounds = System.Windows.Forms.SystemInformation.VirtualScreen;
+        int x = Math.Max(bounds.Left, Math.Min(bounds.Right - 1, (int)Math.Round(target.X)));
+        int y = Math.Max(bounds.Top, Math.Min(bounds.Bottom - 1, (int)Math.Round(target.Y)));
         Winput.SetCursorPosition(x, y);
         System.Threading.Interlocked.Increment(ref MouseMovesSent);
     }
