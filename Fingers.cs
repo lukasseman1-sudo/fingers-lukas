@@ -84,6 +84,21 @@ public class Fingers
     Vector2 dcsAimRemainder;
     bool dcsAimLastTargetValid;
     int dcsAimRealignRequested;
+    // FOV zone is FULL horizontal/vertical width, centered on the head gaze.
+    // 30 degrees means +/-15 degrees on each side, similar to Slugtrack.
+    volatile float dcsAimZoneHorizontal = 30f;
+    volatile float dcsAimZoneVertical = 30f;
+    volatile bool dcsAimAutoCenter = true;
+    volatile bool dcsAimZoneActive;
+    bool dcsAimNeedsResume = true;
+    Vector2 dcsAimVirtualMouseDisplacement;
+    public bool IsDcsAimInsideZone { get { return dcsAimZoneActive; } }
+    public void SetDcsAimZone(float horizontalDegrees, float verticalDegrees, bool recenter)
+    {
+        dcsAimZoneHorizontal = Math.Max(20f, Math.Min(40f, horizontalDegrees));
+        dcsAimZoneVertical = Math.Max(20f, Math.Min(40f, verticalDegrees));
+        dcsAimAutoCenter = recenter;
+    }
     public bool HasDcsAimAnchor { get { return dcsAimAnchorValid; } }
     public void SetMsfsDcsOriginalIndexPoint(bool enabled)
     {
@@ -164,15 +179,52 @@ public class Fingers
             (float)Math.Atan2(headRelative.X, forward) * radToDeg,
             -(float)Math.Atan2(headRelative.Y, forward) * radToDeg);
 
+        // Pause tracking outside a head-relative view cone; no cursor
+        // movement or automatic recalibration while the hand is invisible
+        // or outside the user-selected +/- half-zone bounds.
+        if (Math.Abs(angle.X) > dcsAimZoneHorizontal * 0.5f ||
+            Math.Abs(angle.Y) > dcsAimZoneVertical * 0.5f)
+        {
+            dcsAimZoneActive = false;
+            dcsAimNeedsResume = true;
+            return;
+        }
+        dcsAimZoneActive = true;
+
         bool manualReset = System.Threading.Interlocked.Exchange(ref dcsAimRealignRequested, 0) != 0;
         if (manualReset || !dcsAimAnchorValid || dcsAimAnchorIsLeft != activeHand.isLeft)
         {
-            // The user first aligns the *real MSFS ray* using a physical mouse,
-            // then presses Ctrl+Shift+F12. It is not possible to query that
-            // ray from an external Windows application or set it using SetCursorPos.
+            // Explicit TAB calibration; only this (or selected-hand / bone
+            // changes) affects the persistent angular reference. Losing
+            // hand tracking or leaving the tracking zone never re-anchors.
             dcsAimAnchorAngle = angle;
             dcsAimAnchorIsLeft = activeHand.isLeft;
             dcsAimAnchorValid = true;
+            dcsAimLastTargetValid = false;
+            dcsAimRemainder = Vector2.Zero;
+            dcsAimVirtualMouseDisplacement = Vector2.Zero;
+            dcsAimNeedsResume = false;
+        }
+
+        // On reacquisition / reentry, estimate the mouse displacement that
+        // Fingers itself sent since last centering. Send the opposite delta
+        // to approximately recenter the native MSFS VR ray; don't alter the
+        // saved DCS bone reference. Physical mouse and MSFS internal cursor
+        // resets remain unknowable, hence this is deliberately best-effort.
+        if (dcsAimNeedsResume)
+        {
+            dcsAimNeedsResume = false;
+            if (dcsAimAutoCenter)
+            {
+                int centerDx = -(int)Math.Round(dcsAimVirtualMouseDisplacement.X);
+                int centerDy = -(int)Math.Round(dcsAimVirtualMouseDisplacement.Y);
+                if (centerDx != 0 || centerDy != 0)
+                {
+                    Winput.MoveMouseRelative(centerDx, centerDy);
+                    System.Threading.Interlocked.Increment(ref MouseMovesSent);
+                }
+                dcsAimVirtualMouseDisplacement = Vector2.Zero;
+            }
             dcsAimLastTargetValid = false;
             dcsAimRemainder = Vector2.Zero;
         }
@@ -196,6 +248,7 @@ public class Fingers
             if (dx != 0 || dy != 0)
             {
                 Winput.MoveMouseRelative(dx, dy);
+                dcsAimVirtualMouseDisplacement += new Vector2(dx, dy);
                 System.Threading.Interlocked.Increment(ref MouseMovesSent);
             }
         }
@@ -581,7 +634,15 @@ public class Fingers
 
         bool trackingJustStarted = !currentHand.isActive && activeHand.isActive;
         currentHand = activeHand;
-        if (!activeHand.isActive) return;
+        if (!activeHand.isActive)
+        {
+            if (msfsDcsAim)
+            {
+                dcsAimZoneActive = false;
+                dcsAimNeedsResume = true;
+            }
+            return;
+        }
         if (msfsMode && !msfsSameBoneAbsolute && trackingJustStarted && centerOnTrackingStart)
             System.Windows.Forms.Cursor.Position = new System.Drawing.Point((int)screenCenter.X, (int)screenCenter.Y);
 
@@ -590,6 +651,11 @@ public class Fingers
             TrackedHeadPose liveHead;
             if (headPoseReceiver != null && headPoseReceiver.TryGetPose(out liveHead))
                 MoveDcsAngularCursor(activeHand, liveHead);
+            else
+            {
+                dcsAimZoneActive = false;
+                dcsAimNeedsResume = true;
+            }
             return;
         }
 
