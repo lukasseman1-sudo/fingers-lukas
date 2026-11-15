@@ -118,6 +118,10 @@ namespace FingersApp
             // This one-pixel pulse returns to the same desktop location.
             Winput.MoveMouseRelative(1, 0);
             Winput.MoveMouseRelative(-1, 0);
+            // In absolute SAME-BONE mode the hotkey is an explicit calibration:
+            // align the cursor now, then remember the current bone-to-screen origin.
+            // This does NOT happen when tracking is briefly lost.
+            if (fingers != null) fingers.ResetSameBoneCursorReference();
         }
         private bool pitchCalibrationInProgress = false;
         private bool yawCalibrationInProgress = false;
