@@ -15,6 +15,24 @@ This experimental, opt-in mode is based on the functioning `msfs-direct-input` b
 - The existing `Ctrl+Shift+F12` or `Ctrl+Shift+F11` cursor-recenter hotkey also resets the absolute anchor, allowing explicit realignment.
 - Original speed-based mouse acceleration and deadzone are bypassed while this mode is active; sensitivity X/Y is retained.
 
+## Ultraleap camera is not connected
+
+The GitHub Actions runner doesn't contain Ultraleap's native `LeapC.dll`.
+The `START_MSFS_SAME_BONE.cmd` launcher now copies it from the local
+`%ProgramFiles%\\Ultraleap\\LeapSDK\\lib\\x64\\LeapC.dll` if the package lacks it.
+
+* Unzip the entire build to a writable folder, not directly inside the ZIP.
+* Launch **START_MSFS_SAME_BONE.cmd**, not the bare EXE.
+* If the launcher says `LeapC.dll was not found`, use the official Ultraleap
+  SDK that matches your installed tracking service, or copy the matching
+  `LeapC.dll` from your previously working Fingers application into this folder.
+* Confirm the camera is visible in the Ultraleap Visualizer and the
+  Ultraleap Hand Tracking Service is running before testing Fingers.
+* If the app shows `Connecting...`, look at `Leap snimky`: zero means
+  no tracking frames arrived. A working camera/SDK is still required.
+* This patch fixes native-library discovery, not a disconnected USB camera,
+  stopped Ultraleap service, incompatible DLL, or headset OpenXR layer.
+
 ## Mandatory conditions and limitations
 - The project’s existing `FingersOpenXRLayer.dll` must already be registered and publishing **fresh** Pimax OpenXR head poses to UDP loopback port 39458. Check that the app displays `OpenXR: headset data OK`. Without live head poses this mode freezes rather than inventing coordinates.
 - Position is mapped onto the Windows mouse cursor. It does NOT inject a true OpenXR controller `aim pose` into MSFS or raycast onto the 3D cockpit. Physically perfect overlap of a bone and the native 3D VR interaction cursor cannot be guaranteed by this method.
