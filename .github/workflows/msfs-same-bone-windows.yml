@@ -1,9 +1,9 @@
-name: Test Fingers MSFS same-bone absolute cursor
+name: Test Fingers MSFS DCS angular aiming
 on:
   workflow_dispatch:
   push:
     branches:
-      - feature/msfs-same-bone-absolute-cursor
+      - feature/msfs-dcs-angle-alignment
 jobs:
   build:
     runs-on: windows-2022
@@ -25,7 +25,9 @@ jobs:
           Copy-Item "bin/Release/net48/*" package/ -Force -Recurse
           Copy-Item "START_MSFS_SAME_BONE.cmd" package/
           Copy-Item "START_MSFS_COCKPIT_TEST.cmd" package/
+          Copy-Item "START_MSFS_DCS_AIM_TEST.cmd" package/
           Copy-Item "SAME_BONE_TEST.md" package/
+          Copy-Item "MSFS_DCS_AIM_TEST.md" package/
           Copy-Item "openxr-layer/build/Release/FingersOpenXRLayer.dll" package/
           Copy-Item "openxr-layer/FingersOpenXRLayer.json" package/
           Copy-Item "openxr-layer/FingersOpenXRLayer_implicit.json" package/
@@ -36,6 +38,6 @@ jobs:
           if (-not (Test-Path package/FingersApp.exe)) { throw "FingersApp.exe missing" }
       - uses: actions/upload-artifact@v4
         with:
-          name: Fingers-MSFS-Same-Bone-Absolute-test
+          name: Fingers-MSFS-DCS-Aim-test
           path: package/
           if-no-files-found: error
