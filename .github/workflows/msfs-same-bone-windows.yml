@@ -1,0 +1,40 @@
+name: Test Fingers MSFS same-bone absolute cursor
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/msfs-same-bone-absolute-cursor
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Restore
+        run: msbuild FingersApp.sln /t:Restore /p:Configuration=Release
+      - name: Build Windows app
+        run: msbuild FingersApp.sln /t:Build /p:Configuration=Release /p:Platform="Any CPU" /v:minimal
+      - name: Build existing head-pose layer
+        run: cmake -S openxr-layer -B openxr-layer/build -A x64
+      - name: Compile existing head-pose layer
+        run: cmake --build openxr-layer/build --config Release
+      - name: Package opt-in test
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force package | Out-Null
+          Copy-Item "bin/Release/net48/*" package/ -Force -Recurse
+          Copy-Item "START_MSFS_SAME_BONE.cmd" package/
+          Copy-Item "SAME_BONE_TEST.md" package/
+          Copy-Item "openxr-layer/build/Release/FingersOpenXRLayer.dll" package/
+          Copy-Item "openxr-layer/FingersOpenXRLayer.json" package/
+          Copy-Item "openxr-layer/FingersOpenXRLayer_implicit.json" package/
+          Copy-Item "openxr-layer/CHECK_OPENXR_LAYER.cmd" package/
+          Copy-Item "openxr-layer/ENABLE_OPENXR_LAYER.cmd" package/
+          Copy-Item "openxr-layer/DISABLE_OPENXR_LAYER.cmd" package/
+          Copy-Item "openxr-layer/OPENXR_MSFS_STEAM.cmd" package/
+          if (-not (Test-Path package/FingersApp.exe)) { throw "FingersApp.exe missing" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Fingers-MSFS-Same-Bone-Absolute-test
+          path: package/
+          if-no-files-found: error
