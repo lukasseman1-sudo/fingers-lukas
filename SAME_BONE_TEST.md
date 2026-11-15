@@ -15,6 +15,32 @@ This experimental, opt-in mode is based on the functioning `msfs-direct-input` b
 - The existing `Ctrl+Shift+F12` or `Ctrl+Shift+F11` cursor-recenter hotkey also resets the absolute anchor, allowing explicit realignment.
 - Original speed-based mouse acceleration and deadzone are bypassed while this mode is active; sensitivity X/Y is retained.
 
+## Very low master sensitivity control (cockpit only)
+
+The experimental `START_MSFS_COCKPIT_TEST.cmd` now starts with **5%** of
+the previous cockpit cursor speed, meaning **20x slower on every axis**.
+This multiplier applies to head-compensated hand movement in X, Y and
+the Z/depth contribution to Y; original 3D hand point and headset
+compensation are unchanged.
+
+Use the new **CELKOVA CITLIVOST KOKPITU (vsetky smery)** slider in Fingers:
+
+* Full range: **0.1% to 100%**, logarithmic so extremely low speeds
+  are easy to adjust. 0.1% is 1000x slower than the previous version.
+* Default: **5% = 20x slower**.
+* PageUp/PageDown: approximately **2x** coarse adjustment.
+* Buttons **- 2x pomalsie** / **+ 2x rychlejsie**: 2x coarse changes.
+* The live label shows the actual percentage and slowing factor.
+* Slider value saves to `%APPDATA%\\FingersMSFS\\tuning.txt`
+  as `CockpitSensitivitySlider` and reloads next time.
+* Only applies to the opt-in cockpit relative mouse mode; the older
+  `START_MSFS_SAME_BONE.cmd` keeps its original sensitivity.
+
+In cockpit test mode, source-coordinate changes retain subpixel
+precision in an accumulator before mouse input, avoiding the artificial
+pixel rounding deadzone at 0.1%-5%. MSFS cockpit itself may still
+apply its own mouse sensitivity settings.
+
 ## MSFS 2024: menus work but the VR cockpit only responds to a physical mouse
 
 The original `START_MSFS_SAME_BONE.cmd` uses `SetCursorPos` (Windows absolute pointer
