@@ -24,6 +24,7 @@ jobs:
           New-Item -ItemType Directory -Force package | Out-Null
           Copy-Item "bin/Release/net48/*" package/ -Force -Recurse
           Copy-Item "START_MSFS_SAME_BONE.cmd" package/
+          Copy-Item "START_MSFS_COCKPIT_TEST.cmd" package/
           Copy-Item "SAME_BONE_TEST.md" package/
           Copy-Item "openxr-layer/build/Release/FingersOpenXRLayer.dll" package/
           Copy-Item "openxr-layer/FingersOpenXRLayer.json" package/
