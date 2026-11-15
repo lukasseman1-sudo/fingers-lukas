@@ -164,7 +164,11 @@ public class Fingers
                 Quaternion.CreateFromAxisAngle(Vector3.UnitX,
                     msfsSensorPitch * (float)Math.PI / 180f),
                 out worldPoint))
+        {
+            dcsAimZoneActive = false;
+            dcsAimNeedsResume = true;
             return;
+        }
 
         Vector3 headRelative = Vector3.Transform(worldPoint - liveHead.PositionMeters,
             Quaternion.Inverse(liveHead.Orientation));
@@ -172,7 +176,11 @@ public class Fingers
         if (forward < 0.04f ||
             float.IsNaN(headRelative.X) || float.IsNaN(headRelative.Y) ||
             float.IsInfinity(headRelative.X) || float.IsInfinity(headRelative.Y))
+        {
+            dcsAimZoneActive = false;
+            dcsAimNeedsResume = true;
             return;
+        }
 
         const float radToDeg = 180f / (float)Math.PI;
         Vector2 angle = new Vector2(
@@ -628,6 +636,11 @@ public class Fingers
 
         if (!activeHand.isActive && currentHand.isActive)
         {
+            if (msfsDcsAim)
+            {
+                dcsAimZoneActive = false;
+                dcsAimNeedsResume = true;
+            }
             DisengageHand();
             return;
         }
