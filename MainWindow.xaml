@@ -240,7 +240,7 @@
             <CheckBox x:Name="MsfsDcsIndexPointCheckBox" Content="Original Fingers DCS: klb ukazovaka" IsChecked="True"
                       Foreground="White" Checked="MsfsDcsAimPointChanged" Unchecked="MsfsDcsAimPointChanged" Margin="0,0,0,5"/>
             <TextBlock Text="Ak odskrtnes, zachova sa nase povodne zapastie." Foreground="#FFAAAAAA" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,6"/>
-            <Button x:Name="MsfsDcsAlignButton" Content="ZAROVNAT S VR KURZOROM (Ctrl+Shift+F12)" Click="MsfsDcsAimAlignClicked"
+            <Button x:Name="MsfsDcsAlignButton" Content="ZAROVNAT S VR KURZOROM (TAB)" Click="MsfsDcsAimAlignClicked"
                     Padding="6,6" Margin="0,2,0,3"/>
             <TextBlock Text="Najprv klasickou mysou poloz VR kurzor na sledovany klb. Drz ruku nehybne a stlac Ctrl+Shift+F12. Potom hyb rukou, nie mysou." 
                        Foreground="#FFFFC670" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,5"/>
