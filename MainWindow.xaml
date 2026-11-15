@@ -252,7 +252,7 @@
             <Slider x:Name="MsfsZoneVerticalSlider" Minimum="20" Maximum="40" Value="30" TickFrequency="2" SmallChange="1"
                     IsSnapToTickEnabled="False" AutoToolTipPlacement="TopLeft" ValueChanged="MsfsZoneChanged"/>
             <CheckBox x:Name="MsfsZoneAutoCenterCheckBox" Content="Po obnoveni ruky vratit kurzor priblizne do stredu" 
-                      IsChecked="True" Foreground="White" TextWrapping="Wrap" Checked="MsfsZoneAutoCenterChanged" Unchecked="MsfsZoneAutoCenterChanged" Margin="0,6,0,6"/>
+                      IsChecked="True" Foreground="White" Checked="MsfsZoneAutoCenterChanged" Unchecked="MsfsZoneAutoCenterChanged" Margin="0,6,0,6"/>
             <TextBlock Text="Ruka mimo zony: kurzor sa prestane hybat. Po navrate moze automaticky priblizne vycentrovat VR kurzor; ulozeny referencny bod sa nemeni." 
                        Foreground="#FFAAAAAA" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,5"/>
             <TextBlock x:Name="MsfsDcsAimStatus" Text="DCS angle: cakam na spustenie rezimu" Foreground="#FF82D9F0" TextWrapping="Wrap" Margin="0,0,0,10"/>
