@@ -72,6 +72,26 @@ public class Fingers
     // persistent anchor, but emit deltas via the existing mouse_event path.
     // The regular same-bone Windows cursor mode remains the default.
     readonly bool msfsCockpitRelative = Environment.GetEnvironmentVariable("FINGERS_MSFS_COCKPIT_RELATIVE") == "1";
+    // Opt-in DCS-style angular pointing: angle from eye to the same tracked
+    // hand joint, never arbitrary world X/Y screen coordinates.
+    readonly bool msfsDcsAim = Environment.GetEnvironmentVariable("FINGERS_MSFS_DCS_AIM") == "1";
+    public bool IsMsfsDcsAimMode { get { return msfsDcsAim; } }
+    volatile bool msfsDcsOriginalIndexPoint = true;
+    bool dcsAimAnchorValid;
+    bool dcsAimAnchorIsLeft;
+    Vector2 dcsAimAnchorAngle;
+    Vector2 dcsAimLastTarget;
+    Vector2 dcsAimRemainder;
+    bool dcsAimLastTargetValid;
+    int dcsAimRealignRequested;
+    public bool HasDcsAimAnchor { get { return dcsAimAnchorValid; } }
+    public void SetMsfsDcsOriginalIndexPoint(bool enabled)
+    {
+        if (msfsDcsOriginalIndexPoint == enabled) return;
+        msfsDcsOriginalIndexPoint = enabled;
+        System.Threading.Interlocked.Exchange(ref dcsAimRealignRequested, 1);
+    }
+
     // Cockpit-only MASTER sensitivity. Default 5% (20x slower);
     // user slider can reach 0.1% (1000x slower) across X, Y and depth.
     volatile float msfsCockpitSensitivity = 0.05f;
@@ -102,8 +122,88 @@ public class Fingers
     // loss does NOT reset this reference.
     public void ResetSameBoneCursorReference()
     {
-        if (msfsSameBoneAbsolute)
+        if (msfsDcsAim)
+            System.Threading.Interlocked.Exchange(ref dcsAimRealignRequested, 1);
+        else if (msfsSameBoneAbsolute)
             System.Threading.Interlocked.Exchange(ref absoluteResetRequested, 1);
+    }
+
+    /// <summary>
+    /// DCS Fingers uses atan2 of the tracked index metacarpal joint relative
+    /// to the eyes. MSFS 2024 has no externally readable absolute VR ray state,
+    /// so we feed the difference of that angular target into the game's
+    /// relative mouse ray. Requires a one-time alignment to the actual MSFS ray.
+    ///
+    /// We convert headset-mounted hand coordinates into OpenXR world metres,
+    /// then into live head view coordinates (not the old arbitrary world XY
+    /// plane). This makes the angle respond to head movements as well as hand
+    /// movements while tracking the chosen real-world point.
+    /// </summary>
+    private void MoveDcsAngularCursor(HandData activeHand, TrackedHeadPose liveHead)
+    {
+        Vector3 point = msfsDcsOriginalIndexPoint ? activeHand.dcsIndexPoint : activeHand.pos;
+        Vector3 worldPoint;
+        if (!HeadIndependentHand.TryToWorld(
+                new Vector3(point.X, point.Y, -point.Z), liveHead,
+                new Vector3(0f, msfsSensorY * 0.001f, 0f),
+                Quaternion.CreateFromAxisAngle(Vector3.UnitX,
+                    msfsSensorPitch * (float)Math.PI / 180f),
+                out worldPoint))
+            return;
+
+        Vector3 headRelative = Vector3.Transform(worldPoint - liveHead.PositionMeters,
+            Quaternion.Inverse(liveHead.Orientation));
+        float forward = -headRelative.Z;  // OpenXR forward is -Z
+        if (forward < 0.04f ||
+            float.IsNaN(headRelative.X) || float.IsNaN(headRelative.Y) ||
+            float.IsInfinity(headRelative.X) || float.IsInfinity(headRelative.Y))
+            return;
+
+        const float radToDeg = 180f / (float)Math.PI;
+        Vector2 angle = new Vector2(
+            (float)Math.Atan2(headRelative.X, forward) * radToDeg,
+            -(float)Math.Atan2(headRelative.Y, forward) * radToDeg);
+
+        bool manualReset = System.Threading.Interlocked.Exchange(ref dcsAimRealignRequested, 0) != 0;
+        if (manualReset || !dcsAimAnchorValid || dcsAimAnchorIsLeft != activeHand.isLeft)
+        {
+            // The user first aligns the *real MSFS ray* using a physical mouse,
+            // then presses Ctrl+Shift+F12. It is not possible to query that
+            // ray from an external Windows application or set it using SetCursorPos.
+            dcsAimAnchorAngle = angle;
+            dcsAimAnchorIsLeft = activeHand.isLeft;
+            dcsAimAnchorValid = true;
+            dcsAimLastTargetValid = false;
+            dcsAimRemainder = Vector2.Zero;
+        }
+
+        Vector2 relativeAngle = angle - dcsAimAnchorAngle;
+        Vector2 target = new Vector2(
+            relativeAngle.X * msfsHorizontal,
+            relativeAngle.Y * msfsVertical) *
+            (MsfsPixelsPerDegree * msfsCockpitSensitivity);
+
+        // Never generate spurious movement when changing the gain or hand.
+        if (System.Threading.Interlocked.Exchange(ref cockpitSensitivityUpdateRequested, 0) != 0)
+            dcsAimLastTargetValid = false;
+
+        if (dcsAimLastTargetValid)
+        {
+            Vector2 move = target - dcsAimLastTarget + dcsAimRemainder;
+            int dx = (int)Math.Truncate(move.X);
+            int dy = (int)Math.Truncate(move.Y);
+            dcsAimRemainder = move - new Vector2(dx, dy);
+            if (dx != 0 || dy != 0)
+            {
+                Winput.MoveMouseRelative(dx, dy);
+                System.Threading.Interlocked.Increment(ref MouseMovesSent);
+            }
+        }
+
+        // Do NOT reset on tracking loss: when the same point returns, the
+        // absolute angular target remains tied to its original anchor.
+        dcsAimLastTarget = target;
+        dcsAimLastTargetValid = true;
     }
 
     private void MoveSameBoneCursor(Vector2 worldBonePlane, bool isLeft)
@@ -484,6 +584,14 @@ public class Fingers
         if (!activeHand.isActive) return;
         if (msfsMode && !msfsSameBoneAbsolute && trackingJustStarted && centerOnTrackingStart)
             System.Windows.Forms.Cursor.Position = new System.Drawing.Point((int)screenCenter.X, (int)screenCenter.Y);
+
+        if (msfsMode && msfsDcsAim)
+        {
+            TrackedHeadPose liveHead;
+            if (headPoseReceiver != null && headPoseReceiver.TryGetPose(out liveHead))
+                MoveDcsAngularCursor(activeHand, liveHead);
+            return;
+        }
 
         if (msfsMode && msfsSameBoneAbsolute)
         {
