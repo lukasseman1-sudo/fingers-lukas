@@ -83,6 +83,18 @@ namespace FingersApp
 
         private void CenterCursorNow()
         {
+            // In DCS-style angular mode the MSFS native ray must first be
+            // manually placed on the selected tracked point. An ordinary
+            // SetCursorPos would move a different Windows cursor and destroy
+            // calibration. Capture only the hand angular anchor, without
+            // moving the physical MSFS ray.
+            if (fingers != null && fingers.IsMsfsDcsAimMode)
+            {
+                fingers.ResetSameBoneCursorReference();
+                if (MsfsDcsAimStatus != null)
+                    MsfsDcsAimStatus.Text = "Zarovnanie: cakam na dalsi snimok ruky.";
+                return;
+            }
             // Best effort for MSFS VR: focus on the center of the simulator's
             // rendered desktop viewport, not the Windows primary desktop.
             // The in-headset 3D cursor is internal to MSFS and may not be
@@ -141,6 +153,7 @@ namespace FingersApp
             SourceInitialized += InstallHandHotkeys;
             Closed += RemoveHandHotkeys;
             MsfsTuningPanel.Visibility = Visibility.Visible; // Show tuning controls even when launched directly; MSFS mode itself still requires START_MSFS.cmd.
+            MsfsDcsIndexPointCheckBox.IsChecked = ReadTuning("DcsOriginalIndexPoint", 1) != 0;
             // Logarithmic 0.1%-100% master scale, default 5% (20x slower).
             MsfsCockpitSensitivitySlider.Value = ReadTuning("CockpitSensitivitySlider", 56.632333);
             UpdateCockpitSensitivityText();
@@ -161,6 +174,12 @@ namespace FingersApp
             poseStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             poseStatusTimer.Tick += (s, e) =>
             {
+                if (MsfsDcsAimStatus != null)
+                    MsfsDcsAimStatus.Text = fingers != null && fingers.IsMsfsDcsAimMode
+                        ? (fingers.HasDcsAimAnchor
+                           ? "DCS angle: kotva nastavena (presnost zalezi od VR kurzora v MSFS)"
+                           : "DCS angle: pribliz ruku a zarovnaj s natívnym VR kurzorom")
+                        : "DCS angle: neaktivny, pouzi START_MSFS_DCS_AIM_TEST.cmd";
                 MsfsPoseStatus.Text = fingers != null && fingers.HasFreshHeadPose ? "OpenXR: headset data OK" : "OpenXR: bez dat headsetu";
                 if (fingers != null)
                     MsfsInputStatus.Text = "MSFS mode: " + (fingers.IsMsfsInputMode ? "ANO" : "NIE")
@@ -213,7 +232,7 @@ namespace FingersApp
 
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
-            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex); fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value); fingers.SetMsfsHorizontalTrim((float)MsfsHorizontalHeadTrimSlider.Value); fingers.SetCenterOnTrackingStart(MsfsCenterOnTrackCheckBox.IsChecked == true); fingers.SetMsfsDepthSettings(MsfsInvertDepthCheckBox.IsChecked == true, (float)MsfsDepthInfluenceSlider.Value); fingers.SetMsfsCockpitSensitivity(CockpitMultiplier(MsfsCockpitSensitivitySlider.Value)); }); });
+            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex); fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value); fingers.SetMsfsHorizontalTrim((float)MsfsHorizontalHeadTrimSlider.Value); fingers.SetCenterOnTrackingStart(MsfsCenterOnTrackCheckBox.IsChecked == true); fingers.SetMsfsDepthSettings(MsfsInvertDepthCheckBox.IsChecked == true, (float)MsfsDepthInfluenceSlider.Value); fingers.SetMsfsCockpitSensitivity(CockpitMultiplier(MsfsCockpitSensitivitySlider.Value)); fingers.SetMsfsDcsOriginalIndexPoint(MsfsDcsIndexPointCheckBox.IsChecked == true); }); });
 
             /*
             FingersThread = new Thread(() =>
@@ -353,6 +372,7 @@ namespace FingersApp
             {
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(TuningFile));
                 System.IO.File.WriteAllLines(TuningFile, new[] {
+                    "DcsOriginalIndexPoint=" + (MsfsDcsIndexPointCheckBox.IsChecked == true ? "1" : "0"),
                     "CockpitSensitivitySlider=" + MsfsCockpitSensitivitySlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "Horizontal=" + MsfsHorizontalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "Vertical=" + MsfsVerticalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -370,6 +390,29 @@ namespace FingersApp
                 });
             }
             catch (Exception ex) { Debug.WriteLine("MSFS tuning save: " + ex.Message); }
+        }
+
+        private void MsfsDcsAimPointChanged(object sender, RoutedEventArgs e)
+        {
+            if (MsfsDcsIndexPointCheckBox == null) return;
+            if (fingers != null)
+                fingers.SetMsfsDcsOriginalIndexPoint(MsfsDcsIndexPointCheckBox.IsChecked == true);
+            if (!loadingTuning) SaveTuning();
+        }
+
+        private void MsfsDcsAimAlignClicked(object sender, RoutedEventArgs e)
+        {
+            if (fingers == null || !fingers.IsMsfsDcsAimMode)
+            {
+                MessageBox.Show("Toto zarovnanie funguje len po spusteni START_MSFS_DCS_AIM_TEST.cmd.", "Fingers");
+                return;
+            }
+            if (!fingers.HasFreshHeadPose)
+            {
+                MessageBox.Show("Chybaju OpenXR udaje. Najprv spusti MSFS vo VR a over OpenXR: headset data OK.", "Fingers");
+                return;
+            }
+            CenterCursorNow();
         }
 
         // Logarithmic control: slider 0 -> 0.1%, 56.63 -> 5%, 100 -> 100%.
