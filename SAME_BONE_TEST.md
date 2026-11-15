@@ -15,6 +15,44 @@ This experimental, opt-in mode is based on the functioning `msfs-direct-input` b
 - The existing `Ctrl+Shift+F12` or `Ctrl+Shift+F11` cursor-recenter hotkey also resets the absolute anchor, allowing explicit realignment.
 - Original speed-based mouse acceleration and deadzone are bypassed while this mode is active; sensitivity X/Y is retained.
 
+## MSFS 2024: menus work but the VR cockpit only responds to a physical mouse
+
+The original `START_MSFS_SAME_BONE.cmd` uses `SetCursorPos` (Windows absolute pointer
+position). This works in many menus but the VR cockpit uses a 3D raycast cursor
+steered by mouse *movement*, not the same absolute 2D cursor.
+
+Use the **separate experimental** `START_MSFS_COCKPIT_TEST.cmd`:
+
+1. Close all running FingersApp instances before switching.
+2. Keep the same Ultraleap/Pimax/OpenXR headset setup. Load an aircraft in VR.
+3. Run `START_MSFS_COCKPIT_TEST.cmd`, then return focus to the MSFS cockpit (Alt+Tab
+   or click the simulator window with your physical mouse).
+4. Confirm **Leap: Connected**, `Leap snimky` rising, and
+   **OpenXR: headset data OK**.
+5. Move your tracked wrist while pointing at a cockpit switch. Does the
+   simulator's native VR cursor/raycast move? Try interacting using the physical
+   mouse click as a separate test.
+6. If the cockpit pointer does not move, test MSFS 2024 **Settings > Flight
+   Interface > Cockpit Interaction System > Legacy** and return to VR via
+   **Ctrl+Tab** if input was lost after using the settings menu.
+7. If the app works in menus only, do **not** treat this as a proven fix:
+   MSFS might use an input path that ignores synthetic mouse movement.
+   A virtual HID mouse or true OpenXR controller input would need a separate
+   implementation and test.
+
+This mode **still uses the original Ultraleap wrist bone**,
+head-compensated OpenXR world position, per-hand persistent world anchor, and
+calibration. It produces `mouse_event(MOVE)` relative deltas derived from
+the world-based absolute target, instead of calling `SetCursorPos`.
+A tracking interruption preserves its last target. The `Ctrl+Shift+F11/F12`
+hotkeys explicitly re-anchor. Exact 3D fingertip-over-switch raycast alignment
+is not guaranteed; this only tests whether native VR cockpit input starts
+responding. The physical mouse can also move the native cursor and introduce
+a mismatch.
+
+**Rollback:** Close Fingers, run `START_MSFS_SAME_BONE.cmd` again to use the
+untouched Windows-pointer mode.
+
 ## Ultraleap camera is not connected
 
 The GitHub Actions runner doesn't contain Ultraleap's native `LeapC.dll`.
