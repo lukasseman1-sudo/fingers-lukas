@@ -28,6 +28,7 @@ namespace FingersApp
     {
         Fingers fingers;
         private HwndSource hotkeySource;
+        private bool tabHotkeyRegistered;
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint modifiers, uint key);
         [DllImport("user32.dll", SetLastError = true)]
@@ -41,6 +42,18 @@ namespace FingersApp
                 RegisterHotKey(hotkeySource.Handle, 5300 + id, 0x4003, (uint)(0x30 + id));
             RegisterHotKey(hotkeySource.Handle, 5310, 0x4006, 0x7B); // Ctrl+Shift+F12
             RegisterHotKey(hotkeySource.Handle, 5311, 0x4006, 0x7A); // Ctrl+Shift+F11
+            // TAB alone realigns the DCS-style native VR ray reference.
+            // Only register in the experimental DCS Aim mode; don't steal TAB
+            // from MSFS or Windows when running the other Fingers modes.
+            if (Environment.GetEnvironmentVariable("FINGERS_MSFS_DCS_AIM") == "1")
+            {
+                tabHotkeyRegistered = RegisterHotKey(hotkeySource.Handle, 5312, 0x4000, 0x09);
+                if (!tabHotkeyRegistered)
+                    Dispatcher.BeginInvoke(new Action(() =>
+                        MessageBox.Show("TAB sa nepodarilo zaregistrovat ako globalnu skratku. " +
+                            "Na kalibraciu pouzi Ctrl+Shift+F12.",
+                            "Fingers - TAB", MessageBoxButton.OK, MessageBoxImage.Warning)));
+            }
         }
         private IntPtr HandHotkeyHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
@@ -49,7 +62,13 @@ namespace FingersApp
             if (msg == 0x0312)
             {
                 long id = wParam.ToInt64();
-                if (id == 5310 || id == 5311)
+                if (id == 5312 && tabHotkeyRegistered)
+                {
+                    // Do not send TAB to MSFS: capture a new bone angle.
+                    CenterCursorNow();
+                    handled = true;
+                }
+                else if (id == 5310 || id == 5311)
                 {
                     CenterCursorNow();
                     handled = true;
@@ -69,6 +88,11 @@ namespace FingersApp
                 UnregisterHotKey(hotkeySource.Handle, 5300 + id);
             UnregisterHotKey(hotkeySource.Handle, 5310);
             UnregisterHotKey(hotkeySource.Handle, 5311);
+            if (tabHotkeyRegistered)
+            {
+                UnregisterHotKey(hotkeySource.Handle, 5312);
+                tabHotkeyRegistered = false;
+            }
             hotkeySource.RemoveHook(HandHotkeyHook);
         }
 
