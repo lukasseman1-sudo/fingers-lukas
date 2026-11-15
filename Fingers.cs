@@ -61,6 +61,77 @@ public class Fingers
     // MSFS mode sends relative movement straight from hand tracking (no cursor feedback loop).
     readonly bool mouseOnlyMode = Environment.GetEnvironmentVariable("FINGERS_MOUSE_ONLY") == "1";
     readonly bool msfsMode = Environment.GetEnvironmentVariable("FINGERS_MSFS") == "1" || Environment.GetEnvironmentVariable("FINGERS_MOUSE_ONLY") == "1";
+
+    // Optional ABSOLUTE mode: tracks the SAME LeapHandler HandData.pos (wrist
+    // anchor in the working version). Never alter its chosen bone or mount calibration.
+    // The only difference is computing the cursor from world-space bone POSITION
+    // rather than accumulating relative mouse movement.
+    readonly bool msfsSameBoneAbsolute = Environment.GetEnvironmentVariable("FINGERS_MSFS_SAME_BONE_ABSOLUTE") == "1";
+    bool leftAnchorValid, rightAnchorValid;
+    Vector2 leftAnchorWorld, rightAnchorWorld;
+    Vector2 leftAnchorScreen, rightAnchorScreen;
+    int absoluteResetRequested;
+
+    // Called after the existing Ctrl+Shift+F11/F12 recenter command.
+    // Recalibrates where the tracked bone maps onto the screen; routine tracking
+    // loss does NOT reset this reference.
+    public void ResetSameBoneCursorReference()
+    {
+        if (msfsSameBoneAbsolute)
+            System.Threading.Interlocked.Exchange(ref absoluteResetRequested, 1);
+    }
+
+    private void MoveSameBoneCursor(Vector2 worldBonePlane, bool isLeft)
+    {
+        if (float.IsNaN(worldBonePlane.X) || float.IsNaN(worldBonePlane.Y) ||
+            float.IsInfinity(worldBonePlane.X) || float.IsInfinity(worldBonePlane.Y))
+            return;
+
+        if (System.Threading.Interlocked.Exchange(ref absoluteResetRequested, 0) != 0)
+        {
+            leftAnchorValid = false;
+            rightAnchorValid = false;
+        }
+
+        // A separate, persistent world-space calibration for EACH hand.
+        // It remains unchanged if Leap reports no hand for a while.
+        bool valid = isLeft ? leftAnchorValid : rightAnchorValid;
+        if (!valid)
+        {
+            var cursor = System.Windows.Forms.Cursor.Position;
+            var startingScreen = new Vector2(cursor.X, cursor.Y);
+            if (isLeft)
+            {
+                leftAnchorWorld = worldBonePlane;
+                leftAnchorScreen = startingScreen;
+                leftAnchorValid = true;
+            }
+            else
+            {
+                rightAnchorWorld = worldBonePlane;
+                rightAnchorScreen = startingScreen;
+                rightAnchorValid = true;
+            }
+        }
+        Vector2 baseWorld = isLeft ? leftAnchorWorld : rightAnchorWorld;
+        Vector2 baseScreen = isLeft ? leftAnchorScreen : rightAnchorScreen;
+        Vector2 distanceMeters = worldBonePlane - baseWorld;
+
+        // Retain the same MSFS sensitivity units and direction as the
+        // working relative mode (metres -> approximate angular movement -> pixels).
+        const float worldMetresToDegrees = 114.59f;
+        Vector2 target = baseScreen +
+            new Vector2(distanceMeters.X * msfsHorizontal,
+                        distanceMeters.Y * msfsVertical) *
+            (worldMetresToDegrees * MsfsPixelsPerDegree);
+
+        var bounds = System.Windows.Forms.SystemInformation.VirtualScreen;
+        int x = Math.Max(bounds.Left, Math.Min(bounds.Right - 1, (int)Math.Round(target.X)));
+        int y = Math.Max(bounds.Top, Math.Min(bounds.Bottom - 1, (int)Math.Round(target.Y)));
+        Winput.SetCursorPosition(x, y);
+        System.Threading.Interlocked.Increment(ref MouseMovesSent);
+    }
+
     Vector2 previousMsfsAngle;
     bool previousMsfsAngleValid = false;
     Vector2 msfsRemainder;
@@ -345,8 +416,39 @@ public class Fingers
         bool trackingJustStarted = !currentHand.isActive && activeHand.isActive;
         currentHand = activeHand;
         if (!activeHand.isActive) return;
-        if (msfsMode && trackingJustStarted && centerOnTrackingStart)
+        if (msfsMode && !msfsSameBoneAbsolute && trackingJustStarted && centerOnTrackingStart)
             System.Windows.Forms.Cursor.Position = new System.Drawing.Point((int)screenCenter.X, (int)screenCenter.Y);
+
+        if (msfsMode && msfsSameBoneAbsolute)
+        {
+            // Use EXACTLY the same tracked bone delivered by LeapHandler.
+            // Apply the existing Pimax sensor mount alignment and live headset
+            // position/orientation to get its fixed-world position.
+            TrackedHeadPose liveHead;
+            Vector3 fixedWorldBone;
+            if (headPoseReceiver == null ||
+                !headPoseReceiver.TryGetPose(out liveHead) ||
+                !HeadIndependentHand.TryToWorld(
+                    new Vector3(activeHand.pos.X, activeHand.pos.Y, -activeHand.pos.Z),
+                    liveHead,
+                    new Vector3(0f, msfsSensorY * 0.001f, 0f),
+                    Quaternion.CreateFromAxisAngle(Vector3.UnitX,
+                        msfsSensorPitch * (float)Math.PI / 180f),
+                    out fixedWorldBone))
+            {
+                // No valid headset/world pose -> cannot know the real bone
+                // location. Hold the pointer; never guess using relative deltas.
+                return;
+            }
+
+            float depthDirection = msfsInvertDepth ? -1f : 1f;
+            Vector2 worldPlane = new Vector2(
+                fixedWorldBone.X,
+                -fixedWorldBone.Y +
+                    (msfs3DMode ? depthDirection * msfsDepthToVertical * fixedWorldBone.Z : 0f));
+            MoveSameBoneCursor(worldPlane, activeHand.isLeft);
+            return; // Do NOT run relative mouse or acceleration logic.
+        }
 
         if (msfsMode)
         {
