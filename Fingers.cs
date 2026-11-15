@@ -67,6 +67,14 @@ public class Fingers
     // The only difference is computing the cursor from world-space bone POSITION
     // rather than accumulating relative mouse movement.
     readonly bool msfsSameBoneAbsolute = Environment.GetEnvironmentVariable("FINGERS_MSFS_SAME_BONE_ABSOLUTE") == "1";
+    // Experimental cockpit compatibility: MSFS VR cockpit uses relative mouse motion
+    // to steer its own 3D raycast cursor. Keep SAME BONE world-space target and
+    // persistent anchor, but emit deltas via the existing mouse_event path.
+    // The regular same-bone Windows cursor mode remains the default.
+    readonly bool msfsCockpitRelative = Environment.GetEnvironmentVariable("FINGERS_MSFS_COCKPIT_RELATIVE") == "1";
+    Vector2 lastCockpitTarget;
+    Vector2 cockpitRemainder;
+    bool lastCockpitTargetValid;
     bool leftAnchorValid, rightAnchorValid;
     Vector2 leftAnchorWorld, rightAnchorWorld;
     Vector2 leftAnchorScreen, rightAnchorScreen;
@@ -91,6 +99,8 @@ public class Fingers
         {
             leftAnchorValid = false;
             rightAnchorValid = false;
+            lastCockpitTargetValid = false;
+            cockpitRemainder = Vector2.Zero;
         }
 
         // A separate, persistent world-space calibration for EACH hand.
@@ -128,6 +138,31 @@ public class Fingers
         var bounds = System.Windows.Forms.SystemInformation.VirtualScreen;
         int x = Math.Max(bounds.Left, Math.Min(bounds.Right - 1, (int)Math.Round(target.X)));
         int y = Math.Max(bounds.Top, Math.Min(bounds.Bottom - 1, (int)Math.Round(target.Y)));
+        if (msfsCockpitRelative)
+        {
+            // A physical mouse can move MSFS's VR ray while Windows cursor
+            // repositioning alone may only affect menu/UI layers. Feed
+            // relative input derived from SAME absolute head-compensated target.
+            // Keep the previous target across Leap tracking loss so reacquisition
+            // produces the correct displacement rather than resetting origin.
+            Vector2 currentTarget = new Vector2(x, y);
+            if (lastCockpitTargetValid)
+            {
+                Vector2 delta = currentTarget - lastCockpitTarget + cockpitRemainder;
+                int dx = (int)Math.Truncate(delta.X);
+                int dy = (int)Math.Truncate(delta.Y);
+                cockpitRemainder = delta - new Vector2(dx, dy);
+                if (dx != 0 || dy != 0)
+                {
+                    Winput.MoveMouseRelative(dx, dy);
+                    System.Threading.Interlocked.Increment(ref MouseMovesSent);
+                }
+            }
+            lastCockpitTarget = currentTarget;
+            lastCockpitTargetValid = true;
+            return;
+        }
+
         Winput.SetCursorPosition(x, y);
         System.Threading.Interlocked.Increment(ref MouseMovesSent);
     }
