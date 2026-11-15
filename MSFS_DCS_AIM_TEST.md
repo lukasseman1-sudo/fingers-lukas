@@ -38,7 +38,7 @@ https://docs.flightsimulator.com/msfs2024/flighting/models-and-textures/modeling
   MSFS cockpit-relative input path, preserving very low sensitivity
   and subpixel accumulation.
 - Retains the chosen anchor across hand-tracking interruptions.
-- Uses `Ctrl+Shift+F12` or the alignment button to capture a new
+- Uses `TAB` (or fallback `Ctrl+Shift+F12`) or the alignment button to capture a new
   pointing reference WITHOUT repositioning the Windows mouse or
   disrupting the actual native VR ray.
 
@@ -55,7 +55,7 @@ https://docs.flightsimulator.com/msfs2024/flighting/models-and-textures/modeling
 5. Use your physical mouse to place the *actual MSFS VR cockpit cursor*
    visually over the tracked joint (default **base of the index finger**).
    Keep the hand still.
-6. Press **Ctrl+Shift+F12** while Fingers has registered the hotkey.
+6. Press **TAB** while Fingers has registered the hotkey. TAB is a global hotkey while DCS Aim is running, so MSFS does not receive its usual TAB key. Ctrl+Shift+F12 remains a fallback.
    You can also click **ZAROVNAT S VR KURZOROM** but that may move the
    simulator's cursor while focusing the app, so use the hotkey in VR.
    This records the angle as the reference without moving the VR ray.
@@ -65,7 +65,21 @@ https://docs.flightsimulator.com/msfs2024/flighting/models-and-textures/modeling
    sensitivity (0.1%-100%) and horizontal/vertical gains as required.
 8. If the cursor or hand drifts apart after you touch the physical
    mouse or switch VR views, re-align by placing the native ray over
-   the bone and pressing Ctrl+Shift+F12 again.
+   the bone and pressing TAB again.
+
+## Does tracking loss move the reference?
+
+No. The saved `dcsAimAnchorAngle` and the last known angular cursor
+target are **retained** while the original selected hand disappears.
+There is no automatic recalibration on a missing hand frame. When the
+same hand returns at a new position, the next input catches up to the
+new angle against the original anchor; this may look like a sudden
+cursor movement, but not a reference shift.
+
+A new reference is set only when you press TAB / Ctrl+Shift+F12,
+change the tracked point (index versus wrist), switch the selected
+hand, or restart Fingers. Starting a new instance does not load
+the prior session's physical anchor.
 
 ## Important limitations (no claim of pixel-perfect guarantee)
 
