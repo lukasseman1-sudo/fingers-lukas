@@ -115,6 +115,16 @@ class LeapHandler
             data.pos.Y = data.pos.Y + mountPositionOffset.Y; // upness
             data.pos.Z = data.pos.Z + mountPositionOffset.Z; // depth
 
+            // The original Fingers in DCS points using the metacarpal NextJoint
+            // of the index finger (NOT Hand.WristPosition). Apply the exact same
+            // camera-to-eye mount rotation and translation to BOTH points.
+            data.dcsIndexPoint = Util.RotatePosition(
+                new Vector3(-mcp.NextJoint[0], -mcp.NextJoint[2], mcp.NextJoint[1]),
+                mountAngleOffsetRadians);
+            data.dcsIndexPoint.X += mountPositionOffset.X;
+            data.dcsIndexPoint.Y += mountPositionOffset.Y;
+            data.dcsIndexPoint.Z += mountPositionOffset.Z;
+
             data.isActive = true;
 
             // Actual rotation is not reliable; use a combination of X/Y pos so users can drag
