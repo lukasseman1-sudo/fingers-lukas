@@ -178,6 +178,10 @@ namespace FingersApp
             Closed += RemoveHandHotkeys;
             MsfsTuningPanel.Visibility = Visibility.Visible; // Show tuning controls even when launched directly; MSFS mode itself still requires START_MSFS.cmd.
             MsfsDcsIndexPointCheckBox.IsChecked = ReadTuning("DcsOriginalIndexPoint", 1) != 0;
+            MsfsZoneHorizontalSlider.Value = ReadTuning("DcsZoneHorizontal", 30);
+            MsfsZoneVerticalSlider.Value = ReadTuning("DcsZoneVertical", 30);
+            MsfsZoneAutoCenterCheckBox.IsChecked = ReadTuning("DcsZoneAutoCenter", 1) != 0;
+            UpdateDcsZoneLabels();
             // Logarithmic 0.1%-100% master scale, default 5% (20x slower).
             MsfsCockpitSensitivitySlider.Value = ReadTuning("CockpitSensitivitySlider", 56.632333);
             UpdateCockpitSensitivityText();
@@ -200,9 +204,9 @@ namespace FingersApp
             {
                 if (MsfsDcsAimStatus != null)
                     MsfsDcsAimStatus.Text = fingers != null && fingers.IsMsfsDcsAimMode
-                        ? (fingers.HasDcsAimAnchor
-                           ? "DCS angle: kotva nastavena (presnost zalezi od VR kurzora v MSFS)"
-                           : "DCS angle: pribliz ruku a zarovnaj s natívnym VR kurzorom")
+                        ? (fingers.IsDcsAimInsideZone
+                           ? "Zona: AKTIVNA | " + (fingers.HasDcsAimAnchor ? "referencia ulozena" : "zarovnaj TAB")
+                           : "Zona: PAUZA | pribliz ruku pred seba alebo obnov tracking")
                         : "DCS angle: neaktivny, pouzi START_MSFS_DCS_AIM_TEST.cmd";
                 MsfsPoseStatus.Text = fingers != null && fingers.HasFreshHeadPose ? "OpenXR: headset data OK" : "OpenXR: bez dat headsetu";
                 if (fingers != null)
@@ -256,7 +260,7 @@ namespace FingersApp
 
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
-            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex); fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value); fingers.SetMsfsHorizontalTrim((float)MsfsHorizontalHeadTrimSlider.Value); fingers.SetCenterOnTrackingStart(MsfsCenterOnTrackCheckBox.IsChecked == true); fingers.SetMsfsDepthSettings(MsfsInvertDepthCheckBox.IsChecked == true, (float)MsfsDepthInfluenceSlider.Value); fingers.SetMsfsCockpitSensitivity(CockpitMultiplier(MsfsCockpitSensitivitySlider.Value)); fingers.SetMsfsDcsOriginalIndexPoint(MsfsDcsIndexPointCheckBox.IsChecked == true); }); });
+            Task workerTask = Task.Run(() => { fingers = new Fingers(this); Dispatcher.Invoke(() => { fingers.SetMsfsTuning((float)MsfsHorizontalSlider.Value, (float)MsfsVerticalSlider.Value, (float)MsfsCompensationSlider.Value, (float)MsfsAccelerationSlider.Value, (float)MsfsVerticalHeadTrimSlider.Value); fingers.SetMsfsHandMode(MsfsHandModeCombo.SelectedIndex); fingers.SetMsfs3DMode(Msfs3DCheckBox.IsChecked == true, (float)MsfsSensorPitchSlider.Value, (float)MsfsSensorYSlider.Value); fingers.SetMsfsHorizontalTrim((float)MsfsHorizontalHeadTrimSlider.Value); fingers.SetCenterOnTrackingStart(MsfsCenterOnTrackCheckBox.IsChecked == true); fingers.SetMsfsDepthSettings(MsfsInvertDepthCheckBox.IsChecked == true, (float)MsfsDepthInfluenceSlider.Value); fingers.SetMsfsCockpitSensitivity(CockpitMultiplier(MsfsCockpitSensitivitySlider.Value)); fingers.SetMsfsDcsOriginalIndexPoint(MsfsDcsIndexPointCheckBox.IsChecked == true); fingers.SetDcsAimZone((float)MsfsZoneHorizontalSlider.Value, (float)MsfsZoneVerticalSlider.Value, MsfsZoneAutoCenterCheckBox.IsChecked == true); }); });
 
             /*
             FingersThread = new Thread(() =>
@@ -397,6 +401,9 @@ namespace FingersApp
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(TuningFile));
                 System.IO.File.WriteAllLines(TuningFile, new[] {
                     "DcsOriginalIndexPoint=" + (MsfsDcsIndexPointCheckBox.IsChecked == true ? "1" : "0"),
+                    "DcsZoneHorizontal=" + MsfsZoneHorizontalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "DcsZoneVertical=" + MsfsZoneVerticalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "DcsZoneAutoCenter=" + (MsfsZoneAutoCenterCheckBox.IsChecked == true ? "1" : "0"),
                     "CockpitSensitivitySlider=" + MsfsCockpitSensitivitySlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "Horizontal=" + MsfsHorizontalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "Vertical=" + MsfsVerticalSlider.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -414,6 +421,35 @@ namespace FingersApp
                 });
             }
             catch (Exception ex) { Debug.WriteLine("MSFS tuning save: " + ex.Message); }
+        }
+
+        private void UpdateDcsZoneLabels()
+        {
+            if (MsfsZoneHorizontalLabel == null || MsfsZoneVerticalLabel == null ||
+                MsfsZoneHorizontalSlider == null || MsfsZoneVerticalSlider == null) return;
+            MsfsZoneHorizontalLabel.Text = "Horizontalna zona: " + Math.Round(MsfsZoneHorizontalSlider.Value) + " stupnov";
+            MsfsZoneVerticalLabel.Text = "Vertikalna zona: " + Math.Round(MsfsZoneVerticalSlider.Value) + " stupnov";
+        }
+
+        private void UpdateDcsZone()
+        {
+            if (MsfsZoneHorizontalSlider == null || MsfsZoneVerticalSlider == null ||
+                MsfsZoneAutoCenterCheckBox == null) return;
+            UpdateDcsZoneLabels();
+            if (fingers != null)
+                fingers.SetDcsAimZone((float)MsfsZoneHorizontalSlider.Value,
+                    (float)MsfsZoneVerticalSlider.Value, MsfsZoneAutoCenterCheckBox.IsChecked == true);
+            if (!loadingTuning) SaveTuning();
+        }
+
+        private void MsfsZoneChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            UpdateDcsZone();
+        }
+
+        private void MsfsZoneAutoCenterChanged(object sender, RoutedEventArgs e)
+        {
+            UpdateDcsZone();
         }
 
         private void MsfsDcsAimPointChanged(object sender, RoutedEventArgs e)
