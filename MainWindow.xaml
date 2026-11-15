@@ -236,6 +236,15 @@
                 <ComboBoxItem Content="Prava ruka" Background="White" Foreground="Black"/>
                 <ComboBoxItem Content="Obe ruky" Background="White" Foreground="Black"/>
             </ComboBox>
+            <TextBlock Text="NOVY REZIM: DCS ANGLE (len START_MSFS_DCS_AIM_TEST.cmd)" Foreground="#FF82D9F0" FontWeight="Bold" TextWrapping="Wrap" Margin="0,3,0,4"/>
+            <CheckBox x:Name="MsfsDcsIndexPointCheckBox" Content="Original Fingers DCS: klb ukazovaka" IsChecked="True"
+                      Foreground="White" Checked="MsfsDcsAimPointChanged" Unchecked="MsfsDcsAimPointChanged" Margin="0,0,0,5"/>
+            <TextBlock Text="Ak odskrtnes, zachova sa nase povodne zapastie." Foreground="#FFAAAAAA" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,6"/>
+            <Button x:Name="MsfsDcsAlignButton" Content="ZAROVNAT S VR KURZOROM (Ctrl+Shift+F12)" Click="MsfsDcsAimAlignClicked"
+                    Padding="6,6" Margin="0,2,0,3"/>
+            <TextBlock Text="Najprv klasickou mysou poloz VR kurzor na sledovany klb. Drz ruku nehybne a stlac Ctrl+Shift+F12. Potom hyb rukou, nie mysou." 
+                       Foreground="#FFFFC670" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,5"/>
+            <TextBlock x:Name="MsfsDcsAimStatus" Text="DCS angle: cakam na spustenie rezimu" Foreground="#FF82D9F0" TextWrapping="Wrap" Margin="0,0,0,10"/>
             <CheckBox x:Name="Msfs3DCheckBox" Content="3D priestorove osi (OpenXR)" IsChecked="True" Foreground="White" Checked="Msfs3DChanged" Unchecked="Msfs3DChanged" Margin="0,0,0,8"/>
             <CheckBox x:Name="MsfsInvertDepthCheckBox" Content="Invertovat Z: ruka ku mne / odo mna" IsChecked="True" Foreground="White" Margin="0,0,0,5" Checked="Msfs3DChanged" Unchecked="Msfs3DChanged"/>
             <TextBlock Text="Vplyv Z na vertikalny kurzor (0 = vypnuty)" Foreground="White"/>
